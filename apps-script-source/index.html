@@ -1,0 +1,3478 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在庫・棚卸管理システム</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --border: #e2e8f0;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: #1e293b;
+            transition: opacity 0.2s ease;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        h1, h2, h3 { color: #0f172a; margin: 0; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            margin-top: 20px;
+        }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 0.95em;
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        input:disabled, select:disabled {
+            background-color: #f1f5f9;
+            color: #94a3b8;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.95em;
+        }
+        button:hover:not(:disabled) {
+            opacity: 0.9;
+        }
+        button:disabled {
+            background-color: #cbd5e1;
+            color: #94a3b8;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background-color: #64748b;
+        }
+        
+        /* マスター一覧のアコーディオン */
+        .accordion-header {
+            background: #e2e8f0;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            margin-top: 8px;
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+            padding: 0 10px;
+        }
+        .accordion-content.open {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+        }
+        
+        /* マスターアイテム一覧 */
+        .master-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        .master-item:last-child { border-bottom: none; }
+        .master-info { display: flex; flex-direction: column; flex: 1; min-width: 0; margin-right: 10px; }
+        .master-info-top-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+        .master-price-badge { font-size: 0.8em; color: #64748b; margin-top: 1px; }
+        .master-date-badge { font-size: 0.8em; color: #64748b; white-space: nowrap; text-align: right; flex-shrink: 0; }
+        .master-btn-group { display: flex; gap: 4px; }
+        .master-btn {
+            width: auto;
+            padding: 4px 8px;
+            font-size: 0.8em;
+            border-radius: 4px;
+        }
+        .btn-sort { background: #e2e8f0; color: #1e293b; }
+        .btn-sort:hover:not(:disabled) { background: #cbd5e1; }
+        .btn-edit { background: #dbeafe; color: #1e40af; }
+        .btn-edit:hover:not(:disabled) { background: #bfdbfe; }
+        .btn-delete { background: #fee2e2; color: #991b1b; }
+        .btn-delete:hover:not(:disabled) { background: #fecaca; }
+        .btn-toggle-status { background: #fef3c7; color: #92400e; }
+        .btn-toggle-status:hover:not(:disabled) { background: #fde68a; }
+        .master-item.is-inactive { opacity: 0.55; }
+        .master-item.is-inactive .master-price-badge, .master-item.is-inactive .master-date-badge { color: #94a3b8; }
+        .reduced-tax-badge {
+            font-size: 0.85em;
+            font-weight: bold;
+            color: #b45309;
+        }
+        .master-status-badge {
+            display: inline-block;
+            font-size: 0.72em;
+            font-weight: bold;
+            color: #92400e;
+            background: #fef3c7;
+            border-radius: 3px;
+            padding: 1px 6px;
+            margin-left: 6px;
+        }
+        .checksheet-exempt-badge {
+            display: inline-block;
+            font-size: 0.72em;
+            font-weight: bold;
+            color: #475569;
+            background: #e2e8f0;
+            border-radius: 3px;
+            padding: 1px 6px;
+            margin-left: 6px;
+        }
+        
+        /* テーブル */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        th, td {
+            border: 1px solid var(--border);
+            padding: 10px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background: #f1f5f9;
+            color: #475569;
+        }
+        
+        /* 月次棚卸アコーディオン */
+        .inventory-accordion-header {
+            background-color: #f1f5f9;
+            padding: 12px;
+            font-weight: bold;
+            font-size: 1em;
+            border-radius: 4px;
+            margin-top: 10px;
+            color: #1e293b;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+        }
+        .inventory-accordion-header:hover {
+            background-color: #e2e8f0;
+        }
+        .inventory-accordion-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .category-total-badge {
+            background: #2563eb;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .inv-acc-icon {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #64748b;
+            margin-left: 4px;
+        }
+        .inventory-accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.2s ease-out;
+        }
+        .inventory-accordion-content.open {
+            max-height: 3000px;
+            overflow-x: auto;
+        }
+
+        /* 📊 棚卸テーブルレイアウト */
+        .inv-table th {
+            text-align: center;
+            font-weight: bold;
+            background: #f1f5f9;
+        }
+        .inv-cell-prod {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .cell-qty-container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            width: 100%;
+            position: relative;
+            justify-content: space-between;
+        }
+        .qty-main-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-start;
+        }
+        .qty-val {
+            font-weight: bold;
+            text-align: left;
+            margin-right: 15px;
+            min-width: 35px;
+        }
+        .lot-sub-text {
+            font-size: 0.8em;
+            color: #475569;
+            white-space: pre-line;
+            text-align: right;
+            line-height: 1.2;
+            width: auto;
+            flex-shrink: 0;
+        }
+        .inv-cell-center {
+            text-align: center;
+        }
+        .input-stock-count {
+            width: 80px;
+            padding: 3px;
+            text-align: center;
+        }
+        .inv-cell-price {
+            font-weight: bold;
+            text-align: right;
+            background: #f8fafc;
+            vertical-align: middle;
+        }
+        
+        /* 履歴バッジ */
+        .badge {
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: bold;
+        }
+        .bg-in { background: #dcfce7; color: #166534; }
+        .bg-out { background: #fee2e2; color: #991b1b; }
+        
+        /* 上部コントロール */
+        .flex-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn-lock-toggle {
+            width: auto;
+            background-color: #1e293b;
+        }
+        .btn-lock-toggle.locked {
+            background-color: #dc2626;
+        }
+        .lock-badge {
+            background: #dc2626;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.85em;
+            display: none;
+        }
+        body.is-locked {
+            border-top: 4px solid #dc2626;
+        }
+        
+        /* 履歴コントロール */
+        .history-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+        .history-controls input, .history-controls select {
+            width: auto;
+            flex: 1;
+            min-width: 150px;
+        }
+        .history-controls button { width: auto; }
+        #historyMonthFilter {
+            flex: none;
+            min-width: auto;
+            width: auto;
+        }
+        
+        .col-check { width: 30px; text-align: center; }
+        .chk-history { width: auto; transform: scale(1.1); }
+        
+        .more-btn {
+            text-align: center;
+            padding: 8px;
+            background: #f1f5f9;
+            color: #2563eb;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9em;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+        .more-btn:hover { background: #e2e8f0; }
+        
+        /* モーダル */
+        .modal-overlay {
+            position: fixed;
+            top:0; left:0; width:100%; height:100%;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 6px;
+            width: 90%;
+            max-width: 400px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        /* PDF Download ボタン専用のスタイル設定 */
+        .pdf-btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 12px;
+            font-size: 0.85em;
+            font-weight: bold;
+            cursor: pointer;
+            width: auto;
+            display: inline-block;
+        }
+        .pdf-btn:hover {
+            background-color: #059669;
+        }
+
+        /* ============================================================
+           PDF帳票デザイン（レポート専用トークン）
+           帳票は画面UIの水色トーンとは切り離し、台帳らしい紺 × 真鍮ゴールドの
+           2色構成にまとめる。罫線は最小限、余白と整列で「読みやすさ」を作る。
+        ============================================================ */
+        :root {
+            --pdf-ink: #101828;
+            --pdf-ink-soft: #475467;
+            --pdf-gold: #a9782f;
+            --pdf-gold-soft: #f4ead2;
+            --pdf-hairline: #e3e6ea;
+            --pdf-zebra: #f7f8fa;
+        }
+
+        /* PDF出力時のみ表示されるタイトル用のスタイル（画面表示中は非表示） */
+        .pdf-only-header {
+            display: none;
+        }
+        .pdf-value-text {
+            display: none;
+        }
+
+        /* html2pdf処理時の一時展開用設定 */
+        .html2pdf-printing .inventory-accordion-content {
+            max-height: none !important;
+            display: block !important;
+            overflow: visible !important;
+        }
+        .html2pdf-printing .pdf-btn,
+        .html2pdf-printing .inv-acc-icon,
+        .html2pdf-printing .inventory-accordion-header {
+            display: none !important;
+        }
+
+        /* 入力欄はPDF上では枠線付きフォームに見えて不格好なため、
+           静的なテキストに差し替えて帳票らしい見た目にする */
+        .html2pdf-printing .input-stock-count {
+            display: none !important;
+        }
+        .html2pdf-printing .pdf-value-text {
+            display: inline-block !important;
+            font-weight: 700;
+            color: var(--pdf-ink);
+        }
+
+        .html2pdf-printing body,
+        .html2pdf-printing {
+            font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", -apple-system, "Segoe UI", sans-serif;
+            font-feature-settings: "palt" 1;
+        }
+
+        /* ---- 帳票ヘッダー：ゴールドの見出しバー＋台帳タイトル ---- */
+        .html2pdf-printing .pdf-only-header {
+            display: block !important;
+            position: relative;
+            margin: 2px 0 10px 0;
+            padding: 1px 0 7px 14px;
+            border-left: 4px solid var(--pdf-gold);
+            page-break-inside: avoid;
+            break-inside: avoid;
+            page-break-before: avoid;
+            break-before: avoid-page;
+        }
+        .html2pdf-printing .pdf-eyebrow {
+            font-size: 0.68em;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            color: var(--pdf-gold);
+            margin-bottom: 3px;
+        }
+        .html2pdf-printing .pdf-only-header h2 {
+            font-size: 1.3em;
+            font-weight: 800;
+            color: var(--pdf-ink);
+            letter-spacing: 0.01em;
+            margin: 0 0 5px 0;
+        }
+        .html2pdf-printing .pdf-meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding-top: 5px;
+            border-top: 1px solid var(--pdf-hairline);
+            font-size: 0.98em;
+            color: var(--pdf-ink-soft);
+        }
+        .html2pdf-printing .pdf-meta-row span {
+            white-space: nowrap;
+        }
+        .html2pdf-printing .pdf-meta-row b {
+            color: var(--pdf-ink);
+            font-weight: 700;
+            font-size: 1.15em;
+            margin-left: 3px;
+        }
+
+        /* ---- カード全体：影・角丸を外し、帳票の紙面らしいフラットな見た目に ---- */
+        .html2pdf-printing .inventory-accordion-card {
+            border: none !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            background: #ffffff !important;
+            margin-bottom: 0 !important;
+        }
+
+        /* ---- テーブル：太い格子罫線をやめ、行の下線と余白で読ませる ----
+               ★ 1区分あたりの商品数が多くても1ページに収まるよう、文字サイズと余白を詰めている ---- */
+        .html2pdf-printing table {
+            font-size: 0.74em !important;
+            border-collapse: collapse !important;
+            width: 100%;
+        }
+        .html2pdf-printing th,
+        .html2pdf-printing td {
+            padding: 5px 6px !important;
+            border: none !important;
+            border-bottom: 1px solid var(--pdf-hairline) !important;
+        }
+        .html2pdf-printing .inv-table thead th {
+            background: var(--pdf-ink) !important;
+            color: #ffffff !important;
+            font-weight: 700;
+            font-size: 1em;
+            letter-spacing: 0.02em;
+            border-bottom: none !important;
+        }
+        .html2pdf-printing .inv-table tbody tr:nth-child(even) {
+            background: var(--pdf-zebra);
+        }
+        .html2pdf-printing .inv-table tbody tr:last-child td {
+            border-bottom: none !important;
+        }
+        .html2pdf-printing .inv-cell-price {
+            background: transparent !important;
+            font-variant-numeric: tabular-nums;
+        }
+        .html2pdf-printing .lot-sub-text {
+            color: var(--pdf-ink-soft) !important;
+            font-size: 0.85em !important;
+        }
+        .html2pdf-printing .qty-val {
+            margin-right: 8px !important;
+        }
+        /* ★ 「当月使用数」等の数量値と(@単価)の間隔を詰めつつ、(@単価)自体は
+           セルの右端にきちんと右揃いで揃うようにする（quantityは左、@単価は右で固定）。
+           quantity側の表示幅を必要最小限にし、@単価側は margin-left:auto で
+           右端へ押し出すことで、桁数が変わっても(@単価)の位置がぶれず綺麗に揃う。 */
+        .html2pdf-printing .cell-qty-container {
+            justify-content: flex-start !important;
+        }
+        .html2pdf-printing .qty-val,
+        .html2pdf-printing .pdf-value-text {
+            margin-right: 0 !important;
+            min-width: 0 !important;
+            flex-shrink: 0;
+        }
+        .html2pdf-printing .lot-sub-text {
+            margin-left: auto !important;
+            text-align: right !important;
+        }
+
+        /* ---- 区分小計行：見出し部に同内容（当月使用金額・在庫金額）を表示済みのため、
+               PDF上では表の末尾に重複して出さない ---- */
+        .html2pdf-printing .pdf-subtotal-row {
+            display: none !important;
+        }
+        .html2pdf-printing .pdf-total-table {
+            margin-top: 22px !important;
+        }
+        .html2pdf-printing .pdf-grandtotal-row td {
+            background: var(--pdf-ink) !important;
+            color: #ffffff !important;
+            border-bottom: none !important;
+            font-size: 1.05em !important;
+        }
+        .html2pdf-printing .pdf-grandtotal-row .inv-cell-price {
+            color: var(--pdf-gold-soft) !important;
+            font-weight: 800 !important;
+            letter-spacing: 0.02em;
+        }
+
+        /* まとめてPDF出力時：各カードの内部で表が分断されないことだけを保証し、
+           カードごとの強制改ページはしない（内容が少ない区分同士は同じページに詰めて表示され、
+           ページ数が無駄に増えないようにする）。ページが変わるのは、次のカード全体が
+           残りスペースに収まらない場合のみ（ブラウザの自然な流し込みに任せる）。 */
+        .html2pdf-group-printing .inventory-accordion-card {
+            page-break-inside: avoid;
+            break-inside: avoid-page;
+            margin-bottom: 16px !important;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--pdf-hairline) !important;
+        }
+        .html2pdf-group-printing .inventory-accordion-card:last-of-type {
+            border-bottom: none !important;
+        }
+    
+
+        /* 棚卸チェック表 印刷 */
+        .app-title-bar {
+            margin-top: 10px;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 6px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .app-title-bar h2 {
+            margin: 0;
+        }
+        .handwrite-print-panel {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .handwrite-print-panel label {
+            margin: 0;
+            font-size: 0.84em;
+            white-space: nowrap;
+        }
+        .handwrite-print-panel select {
+            width: auto;
+            min-width: 140px;
+            max-width: 260px;
+            padding: 5px 8px;
+            font-size: 0.84em;
+        }
+        .handwrite-print-btn {
+            width: auto;
+            background: #0f766e;
+            padding: 6px 10px;
+            font-size: 0.84em;
+            white-space: nowrap;
+        }
+        .handwrite-print-btn:hover:not(:disabled) {
+            background: #115e59;
+        }
+        .print-only-area {
+            display: none;
+        }
+        @media (max-width: 768px) {
+            .app-title-bar {
+                align-items: flex-start;
+            }
+            .handwrite-print-panel {
+                width: 100%;
+                justify-content: flex-start;
+                margin-left: 0;
+            }
+            .handwrite-print-panel select {
+                max-width: none;
+                flex: 1 1 auto;
+            }
+        }
+
+        /* スマホ専用: 横スクロールを使わず、縦方向だけで操作できる密度にする */
+        @media (max-width: 768px) {
+            html, body {
+                width: 100%;
+                max-width: 100%;
+                box-sizing: border-box;
+                overflow-x: hidden;
+                overflow-x: clip;
+            }
+            body {
+                padding: 8px;
+                font-size: 14px;
+            }
+            .container { max-width: none; min-width: 0; }
+            h2 { font-size: 1.1rem; }
+            h3 { font-size: 1rem; }
+            .app-title-bar { gap: 6px; margin-bottom: 8px; }
+            .handwrite-print-panel { gap: 5px; }
+            .handwrite-print-panel label { width: 100%; }
+            .handwrite-print-panel select { min-width: 0; }
+            .handwrite-print-btn { padding: 7px 8px; }
+
+            .grid {
+                grid-template-columns: 1fr !important;
+                gap: 8px !important;
+                margin: 8px 0 12px !important;
+            }
+            .card {
+                padding: 10px;
+                border-radius: 6px;
+                margin-bottom: 10px;
+            }
+            .form-group { margin-bottom: 9px; }
+            label { margin-bottom: 3px; font-size: 0.82em; }
+            input, select { min-height: 34px; padding: 6px 8px; font-size: 16px; }
+            button { padding: 8px; }
+            .accordion-header { padding: 8px; margin-top: 6px; }
+            .accordion-content.open { padding: 8px; }
+            .master-item { padding: 5px 0; }
+            .master-info-top-row { gap: 5px; }
+            .master-btn { padding: 4px 6px; }
+
+            /* 一覧を開いたときも、商品情報・日付・操作ボタンを画面幅内に収める */
+            .accordion-content,
+            .master-item,
+            .master-info,
+            .master-info-top-row,
+            .master-btn-group {
+                min-width: 0;
+                max-width: 100%;
+                box-sizing: border-box;
+            }
+            .master-item {
+                display: block;
+            }
+            .master-info {
+                width: 100%;
+                margin-right: 0;
+            }
+            .master-info-top-row {
+                display: block;
+            }
+            .master-info-top-row > span:first-child {
+                display: block;
+                overflow-wrap: anywhere;
+            }
+            .master-date-badge {
+                display: block;
+                margin-top: 2px;
+                white-space: normal;
+                text-align: left;
+                overflow-wrap: anywhere;
+            }
+            .master-btn-group {
+                margin-top: 4px;
+                justify-content: flex-end;
+                flex-wrap: wrap;
+                gap: 3px;
+            }
+            .master-btn { min-width: 28px; padding: 3px 5px; }
+
+            .flex-header { align-items: stretch; gap: 8px; padding-bottom: 8px; }
+            .header-controls { width: 100%; gap: 6px; }
+            .header-controls > label { width: 100%; }
+            .header-controls > div { flex: 1; }
+            .header-controls input[type="month"] { width: 100% !important; }
+            .header-controls > button { flex: 1 1 46%; min-width: 0; }
+            .btn-lock-toggle, .pdf-btn { white-space: normal; }
+
+            .inventory-accordion-header { padding: 9px; margin-top: 7px; align-items: flex-start; gap: 6px; }
+            .inventory-accordion-right { gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+            .category-total-badge { padding: 2px 6px; font-size: 0.72em; text-align: right; }
+            .inventory-accordion-right .pdf-btn { padding: 4px 7px; font-size: 0.75em; }
+            .inventory-accordion-content.open { overflow: visible; }
+            .inventory-accordion-content.open > div { padding: 6px !important; overflow: visible !important; }
+
+            /* 月次棚卸表: 各商品を1枚の縦型カードとして表示 */
+            .inv-table, .inv-table tbody, .inv-table tr, .inv-table td {
+                display: block;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .inv-table { margin: 0; font-size: 0.88em; }
+            .inv-table thead { display: none; }
+            .inv-table tr {
+                border: 1px solid var(--border);
+                border-radius: 5px;
+                margin: 0 0 7px;
+                overflow: hidden;
+            }
+            .inv-table td {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+                min-height: 30px;
+                padding: 5px 7px !important;
+                border: 0;
+                border-bottom: 1px solid #f1f5f9;
+                text-align: right;
+            }
+            .inv-table td::before {
+                color: #64748b;
+                font-size: 0.82em;
+                font-weight: bold;
+                text-align: left;
+                flex: 0 0 6.5em;
+            }
+            .inv-table td:nth-child(1) { background: #f8fafc; text-align: left; }
+            .inv-table td:nth-child(1)::before { content: "商品名"; }
+            .inv-table td:nth-child(2)::before { content: "前月繰越"; }
+            .inv-table td:nth-child(3)::before { content: "当月入庫"; }
+            .inv-table td:nth-child(4)::before { content: "当月使用数"; }
+            .inv-table td:nth-child(5)::before { content: "棚卸数"; }
+            .inv-table td:nth-child(6)::before { content: "在庫金額"; }
+            .inv-table td:nth-child(7)::before { content: "在庫金額"; }
+            .inv-table-has-unknown td:nth-child(5)::before { content: "商品不明"; }
+            .inv-table-has-unknown td:nth-child(6)::before { content: "棚卸数"; }
+            .inv-table .cell-qty-container { max-width: 65%; justify-content: flex-end; }
+            .inv-table .input-stock-count { width: 90px !important; min-height: 30px; }
+            .inv-table .inv-cell-price { background: transparent; }
+            .inv-table .pdf-subtotal-row { display: none; }
+            .inv-table tr:has(td[colspan]) td { justify-content: center; text-align: center; }
+            .inv-table tr:has(td[colspan]) td::before { display: none; }
+
+            .pdf-total-table, .pdf-total-table tbody, .pdf-total-table tr, .pdf-total-table td {
+                display: block;
+                width: 100% !important;
+                box-sizing: border-box;
+            }
+            .pdf-total-table { margin: 8px 0 0 !important; }
+            .pdf-total-table td { padding: 7px !important; text-align: right !important; }
+
+            .history-controls { gap: 6px; margin: 8px 0; }
+            .history-controls input, .history-controls select { width: 100%; min-width: 0; flex: 1 1 100%; }
+            .history-controls button { width: 100% !important; }
+            .history-controls + div { overflow: visible !important; }
+
+            /* 履歴表も横スクロールを使わない縦型カードにする */
+            #historyTable, #historyTable tr, #historyTable td { display: block; width: 100%; box-sizing: border-box; }
+            #historyTable tr { border: 1px solid var(--border); border-radius: 5px; margin-bottom: 7px; overflow: hidden; }
+            #historyTable td { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 5px 7px; border: 0; border-bottom: 1px solid #f1f5f9; text-align: right; }
+            #historyTable td::before { color: #64748b; font-size: 0.82em; font-weight: bold; text-align: left; flex: 0 0 5.5em; }
+            #historyTable td:nth-child(1)::before { content: "選択"; }
+            #historyTable td:nth-child(2)::before { content: "処理日時"; }
+            #historyTable td:nth-child(3)::before { content: "対象年月"; }
+            #historyTable td:nth-child(4)::before { content: "商品"; }
+            #historyTable td:nth-child(5)::before { content: "処理種別"; }
+            #historyTable td:nth-child(6)::before { content: "数量"; }
+            #historyTable td:nth-child(7)::before { content: "仕入単価"; }
+            #historyTable td:nth-child(8)::before { content: "操作"; }
+            #historyTable tr:has(td[colspan]) td { justify-content: center; text-align: center; }
+            #historyTable tr:has(td[colspan]) td::before { display: none; }
+            table:has(#historyTable) thead { display: none; }
+
+            /* 見出し・区分名は折り返さず、棚卸データは2列で密度を上げる */
+            .mobile-compact-title,
+            .inventory-accordion-header > span:first-child {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .mobile-compact-title { font-size: 0.92rem; letter-spacing: -0.03em; }
+            .inventory-accordion-header {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr);
+            }
+            .inventory-accordion-right {
+                width: 100%;
+                justify-content: space-between;
+                flex-wrap: nowrap;
+            }
+            .category-total-badge { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+            .inv-table tr:not(.pdf-subtotal-row) {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 0;
+            }
+            .inv-table td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                min-height: 0;
+                padding: 4px 6px !important;
+            }
+            .inv-table td::before {
+                display: block;
+                margin-bottom: 2px;
+                font-size: 0.72em;
+            }
+            .inv-table td:nth-child(1),
+            .inv-table tr:has(td[colspan]) td { grid-column: 1 / -1; }
+            .inv-table .cell-qty-container { max-width: none; min-height: 24px; justify-content: space-between; }
+            .inv-table .input-stock-count { width: 100% !important; }
+
+            #historyTable tr {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+            #historyTable td {
+                display: block;
+                width: auto;
+                min-width: 0;
+                min-height: 0;
+                padding: 4px 6px;
+            }
+            #historyTable td::before {
+                display: block;
+                margin-bottom: 2px;
+                font-size: 0.72em;
+            }
+            #historyTable td:nth-child(4),
+            #historyTable tr:has(td[colspan]) td { grid-column: 1 / -1; }
+
+            .modal-content { width: calc(100% - 24px); max-height: calc(100vh - 24px); overflow-y: auto; padding: 12px; }
+            .modal-buttons { gap: 6px; margin-top: 10px; }
+        }
+
+        @media print {
+            body.handwrite-print-mode > .container,
+            body.handwrite-print-mode > .modal-overlay {
+                display: none !important;
+            }
+            body.handwrite-print-mode .print-only-area {
+                display: block !important;
+            }
+            body.handwrite-print-mode {
+                background: white !important;
+                padding: 0 !important;
+                color: #111827 !important;
+            }
+            .handwrite-sheet {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 6mm;
+                font-family: Arial, 'Helvetica Neue', sans-serif;
+            }
+            .handwrite-sheet.page-break-after {
+                page-break-after: always;
+                break-after: page;
+            }
+            .handwrite-sheet h1 {
+                font-size: 16pt;
+                margin: 0 0 2.5mm 0;
+                color: #111827;
+            }
+            .handwrite-sheet-meta {
+                display: flex;
+                flex-wrap: nowrap;
+                align-items: flex-start;
+                justify-content: space-between;
+                gap: 8mm;
+                margin-bottom: 3mm;
+                font-size: 9.5pt;
+            }
+            .handwrite-sheet-meta > div {
+                white-space: nowrap;
+            }
+            .handwrite-sheet-meta > div.handwrite-meta-category {
+                white-space: normal;
+                flex: 1 1 auto;
+                min-width: 0;
+                text-align: center;
+            }
+            .handwrite-sheet-meta > div.handwrite-meta-fixed {
+                flex: 0 0 auto;
+            }
+            .handwrite-sheet table {
+                width: 100%;
+                border-collapse: separate;
+                border-spacing: 0;
+                table-layout: fixed;
+                font-size: 9.5pt;
+            }
+            .handwrite-sheet thead {
+                display: table-header-group;
+            }
+            .handwrite-sheet tbody {
+                display: table-row-group;
+            }
+            .handwrite-sheet tr {
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .handwrite-sheet th,
+            .handwrite-sheet td {
+                border: 0;
+                border-right: 1px solid #111827;
+                border-bottom: 1px solid #111827;
+                padding: 2px 6px;
+                height: 7.6mm;
+                color: #111827;
+                box-sizing: border-box;
+            }
+            .handwrite-sheet th:first-child,
+            .handwrite-sheet td:first-child {
+                border-left: 1px solid #111827;
+            }
+            .handwrite-sheet thead tr:first-child th {
+                border-top: 1px solid #111827;
+            }
+            .handwrite-sheet th {
+                background: #e5e7eb !important;
+                text-align: center;
+                font-weight: bold;
+            }
+            .handwrite-col-no { width: 9%; text-align: center; }
+            .handwrite-col-name { width: 43%; }
+            .handwrite-col-count { width: 18%; }
+            .handwrite-col-check { width: 12%; }
+            .handwrite-col-note { width: 18%; }
+            .handwrite-sheet-footer-note {
+                margin-top: 6mm;
+                padding: 4mm 5mm;
+                border: 2px solid #111827;
+                color: #111827;
+                text-align: center;
+                page-break-inside: avoid;
+                break-inside: avoid;
+            }
+            .handwrite-sheet-footer-note-title {
+                font-size: 15pt;
+                font-weight: bold;
+                margin-bottom: 2mm;
+            }
+            .handwrite-sheet-footer-note-formula {
+                font-size: 12pt;
+                font-weight: bold;
+                white-space: pre-line;
+            }
+            .handwrite-supply-section {
+                page-break-before: always;
+                break-before: page;
+            }
+            .handwrite-supply-heading {
+                margin: 0 0 2mm 0;
+                font-size: 12pt;
+                color: #111827;
+                border-bottom: 1px solid #111827;
+                padding-bottom: 1mm;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 8mm;
+            }
+        }
+
+    </style>
+</head>
+<body id="appBody">
+<div class="container">
+    <div class="app-title-bar">
+        <h2>📦 在庫・棚卸管理システム（※FIFO対応）</h2>
+        <div class="handwrite-print-panel">
+            <label for="handwritePrintCategory">棚卸チェック表</label>
+            <select id="handwritePrintCategory"></select>
+            <button type="button" class="handwrite-print-btn" onclick="printSelectedHandwriteInventorySheet()">棚卸チェック表印刷</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <div class="card">
+                <h3>① 商品マスター登録</h3>
+                <form id="productForm">
+                    <div class="form-group">
+                        <label>商品名</label>
+                        <input type="text" id="prodName" required placeholder="例: A商品">
+                    </div>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:0; margin-bottom:0; gap:10px;">
+                        <div class="form-group">
+                            <label>区分</label>
+                            <select id="prodCategory">
+                                <option value="商品仕入">商品仕入</option>
+                                <option value="消耗品">消耗品</option>
+                                <option value="金券">金券</option>
+                                <option value="ボトルチケット">ボトルチケット</option>
+                                <option value="貯蔵品">貯蔵品</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>評価単価 (通常単価)</label>
+                            <input type="number" id="prodDefaultPrice" min="0" required placeholder="例: 1000">
+                        </div>
+                    </div>
+                    <div class="form-group" style="display:flex; align-items:center; gap:20px; flex-wrap:wrap; margin-bottom:15px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="checkbox" id="prodReducedTax" style="width:auto;">
+                            <label for="prodReducedTax" style="margin-bottom:0; font-weight:normal;">🍽️ 軽減税率対象商品</label>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <input type="checkbox" id="prodCheckSheetVisible" checked style="width:auto;">
+                            <label for="prodCheckSheetVisible" style="margin-bottom:0; font-weight:normal;">📋 棚卸チェック表に表記する</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>備考（任意）</label>
+                        <input type="text" id="prodNote">
+                    </div>
+                    <button type="submit" id="btnProductSubmit">＋ 商品を追加登録</button>
+                </form>
+
+                <div style="margin-top: 15px;">
+                    <label>📋 登録済み商品一覧</label>
+                    <div class="accordion-header" onclick="toggleAccordion('acc-purchase')">
+                        <span>📊 商品仕入</span><span id="icon-acc-purchase">▼</span>
+                    </div>
+                    <div id="acc-purchase" class="accordion-content"></div>
+
+                    <div class="accordion-header" onclick="toggleAccordion('acc-consumable')">
+                        <span>🧴 消耗品</span><span id="icon-acc-consumable">▼</span>
+                    </div>
+                    <div id="acc-consumable" class="accordion-content"></div>
+
+                    <div class="accordion-header" onclick="toggleAccordion('acc-quocard')">
+                        <span>💳 金券</span><span id="icon-acc-quocard">▼</span>
+                    </div>
+                    <div id="acc-quocard" class="accordion-content"></div>
+
+                    <div class="accordion-header" onclick="toggleAccordion('acc-bottleticket')">
+                        <span>🎫 ボトルチケット</span><span id="icon-acc-bottleticket">▼</span>
+                    </div>
+                    <div id="acc-bottleticket" class="accordion-content"></div>
+
+                    <div class="accordion-header" onclick="toggleAccordion('acc-stored')">
+                        <span>💾 貯蔵品</span><span id="icon-acc-stored">▼</span>
+                    </div>
+                    <div id="acc-stored" class="accordion-content"></div>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="card">
+                <h3>② 仕入・入庫ロット登録</h3>
+                <form id="transactionForm">
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:0; margin-bottom:0; gap:10px;">
+                        <div class="form-group">
+                            <label>商品区分で絞り込み</label>
+                            <select id="txFilterCategory" onchange="updateSelectOptions()">
+                                <option value="">-- 全ての区分 --</option>
+                                <option value="商品仕入">商品仕入</option>
+                                <option value="消耗品">消耗品</option>
+                                <option value="金券">金券</option>
+                                <option value="ボトルチケット">ボトルチケット</option>
+                                <option value="貯蔵品">貯蔵品</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>対象商品</label>
+                            <select id="txProduct" onchange="onProductSelectChange()" required>
+                                <option value="">-- 商品を選択 --</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:0; margin-bottom:0; gap:10px;">
+                        <div class="form-group">
+                            <label>区分</label>
+                            <select id="txType" disabled><option value="仕入">仕入（入庫）</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>数量</label>
+                            <input type="number" id="txQty" min="1" required placeholder="数量">
+                        </div>
+                    </div>
+                    <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top:0; margin-bottom:0; gap:10px;">
+                        <div class="form-group">
+                            <label>実際の仕入単価（未入力時は通常単価）</label>
+                            <input type="number" id="txPrice" min="0" placeholder="単価">
+                        </div>
+                        <div class="form-group">
+                            <label>仕入れた日付（FIFO基準日）</label>
+                            <input type="date" id="txDate" required>
+                        </div>
+                    </div>
+                    <button type="submit" id="btnTxSubmit">⚡ 仕入ロットを確定・記録</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3 style="margin-bottom:8px;">③ 棚卸チェック表 備品確認欄の管理</h3>
+                <div class="accordion-header" onclick="toggleAccordion('acc-supplyItems')">
+                    <span>📦 備品確認欄を編集する</span><span id="icon-acc-supplyItems">▼</span>
+                </div>
+                <div id="acc-supplyItems" class="accordion-content">
+                    <div style="font-size:0.85em; color:#64748b; margin: 10px 0;">
+                        「棚卸チェック表印刷」（全部印刷）の一番下に印刷される備品確認欄の項目です。棚卸後の発注確認用に自由に追加・削除・並び替えができます。備考欄はここで入力した内容がそのまま印刷されます。
+                    </div>
+                    <div class="form-group" style="display:flex; gap:8px; align-items:flex-end; margin-bottom:10px;">
+                        <div style="flex:1;">
+                            <label>品名</label>
+                            <input type="text" id="supplyItemName" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSupplyItem();}">
+                        </div>
+                        <div style="flex:1;">
+                            <label>備考（任意）</label>
+                            <input type="text" id="supplyItemNote" onkeydown="if(event.key==='Enter'){event.preventDefault(); addSupplyItem();}">
+                        </div>
+                        <button type="button" style="width:auto; padding:8px 14px;" onclick="addSupplyItem()">＋ 追加</button>
+                    </div>
+                    <div id="supplyItemsList"></div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>④ 当月追加商品・取扱再開商品・取扱終了商品</h3>
+                <div id="monthlyProductChangesContainer"></div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="card">
+        <div class="flex-header">
+            <h3 class="mobile-compact-title">📊 月次棚卸・貯蔵品一覧表 <span id="lockBadge" class="lock-badge">🔒 仮締め中</span></h3>
+            <div class="header-controls">
+                <label style="margin:0; font-weight:bold; white-space:nowrap;">対象年月</label>
+                <div style="display:flex; align-items:center; gap:4px;">
+                    <button type="button" class="btn-secondary" style="width:auto; padding:6px 10px;" onclick="shiftTargetMonth(-1)" title="1か月前へ">◀</button>
+                    <input type="month" id="targetMonth" onchange="onTargetMonthChange()" style="width:150px; padding:6px;">
+                    <button type="button" class="btn-secondary" style="width:auto; padding:6px 10px;" onclick="shiftTargetMonth(1)" title="1か月先へ">▶</button>
+                </div>
+                <button type="button" id="btnLockToggle" class="btn-lock-toggle" onclick="toggleMonthLock()">🔒 選択月を仮締めする</button>
+                <button type="button" class="pdf-btn" onclick="downloadGroupPDF('inventoryTablesContainer', '月次棚卸・貯蔵品一覧表')">📑 まとめてPDF出力</button>
+            </div>
+        </div>
+        <div id="inventoryTablesContainer"></div>
+    </div>
+
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap: wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <h3 class="mobile-compact-title" style="margin:0;">📜 入出庫・棚卸調整 履歴データログ</h3>
+                <button type="button" id="historyTopToggleBtn" class="btn-secondary" style="display:none; width:auto; padding:4px 10px; font-size:0.85em;" onclick="toggleHistoryDisplay()">▼ すべて表示する</button>
+            </div>
+            <button type="button" id="undoButton" class="btn-secondary" style="display:none; width:auto; padding:4px 8px; font-size:0.85em;" onclick="undoClearData()">↩︎ 直前の操作を元に戻す</button>
+        </div>
+        <div class="history-controls">
+            <input type="text" id="historySearchInput" oninput="renderHistoryTable()" placeholder="🔍 商品名や区分で検索...">
+            <select id="historyMonthFilter" onchange="renderHistoryTable()">
+                <option value="">全ての期間</option>
+            </select>
+            <button type="button" id="btnExpiredHistoryToggle" class="btn-secondary" style="width:auto;" onclick="toggleExpiredHistoryDisplay()">60日超過の履歴を表示</button>
+            <button type="button" id="btnDeleteSelected" class="btn-delete" style="width:auto;" onclick="deleteSelectedHistory()">選択した履歴を削除</button>
+        </div>
+        <div style="overflow-x:auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th class="col-check"><input type="checkbox" id="thSelectAll" onclick="toggleSelectAllHistory(this)"></th>
+                        <th>処理日時</th><th>対象年月</th><th>対象商品</th><th>処理種別</th><th>数量</th><th>仕入単価(ロット)</th><th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="historyTable"></tbody>
+            </table>
+        </div>
+        <div id="historyMoreButtonContainer"></div>
+    </div>
+</div>
+
+<div id="handwritePrintArea" class="print-only-area"></div>
+
+<div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">✏️ 商品マスターの編集</h3>
+        <input type="hidden" id="editOldName"><input type="hidden" id="editOldCategory">
+        <div class="form-group"><label>商品名</label><input type="text" id="editModalName"></div>
+        <div class="form-group">
+            <label>区分</label>
+            <select id="editModalCategory">
+                <option value="商品仕入">商品仕入</option>
+                <option value="消耗品">消耗品</option>
+                <option value="金券">金券</option>
+                <option value="ボトルチケット">ボトルチケット</option>
+                <option value="貯蔵品">貯蔵品</option>
+            </select>
+        </div>
+        <div class="form-group"><label>評価単価 (通常単価)</label><input type="number" id="editModalPrice" min="0"></div>
+        <div class="form-group" style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="editModalReducedTax" style="width:auto;">
+                <label for="editModalReducedTax" style="margin-bottom:0; font-weight:normal;">🍽️ 軽減税率対象商品</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="editModalCheckSheetVisible" style="width:auto;">
+                <label for="editModalCheckSheetVisible" style="margin-bottom:0; font-weight:normal;">📋 棚卸チェック表に表記する</label>
+            </div>
+        </div>
+        <div class="form-group">
+            <div style="font-size:0.8em; color:#64748b; margin-top:4px;">チェックを外すと、この商品は「棚卸チェック表」の印刷対象から除外されます（月次棚卸・貯蔵品一覧表には影響しません）。</div>
+        </div>
+        <div class="form-group">
+            <label>備考（任意）</label>
+            <input type="text" id="editModalNote">
+        </div>
+        <div class="form-group">
+            <label>状態</label>
+            <select id="editModalStatus">
+                <option value="active">📊 販売中</option>
+                <option value="inactive">🚫 取り扱い終了</option>
+            </select>
+            <div style="font-size:0.8em; color:#64748b; margin-top:4px;">「取り扱い終了」にしても過去の棚卸・入出庫データは削除されません。以後、新規の入庫登録の選択肢から外れます。</div>
+        </div>
+        <div class="modal-buttons">
+            <button type="button" onclick="saveProductEdit()">保存する</button>
+            <button type="button" class="btn-secondary" onclick="closeEditModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<div id="editHistoryModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">✏️ 履歴データの修正</h3>
+        <input type="hidden" id="editHistoryId">
+        <div class="form-group"><label>数量</label><input type="number" id="editHistoryQty" min="1"></div>
+        <div class="form-group" id="editHistoryPriceGroup"><label>仕入単価</label><input type="number" id="editHistoryPrice" min="0"></div>
+        <div class="modal-buttons">
+            <button type="button" onclick="saveHistoryEdit()">修正を確定</button>
+            <button type="button" class="btn-secondary" onclick="closeEditHistoryModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<div id="editSupplyItemModal" class="modal-overlay">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">✏️ 備品確認欄の編集</h3>
+        <input type="hidden" id="editSupplyItemOldName">
+        <div class="form-group"><label>品名</label><input type="text" id="editSupplyItemName"></div>
+        <div class="form-group"><label>備考（任意）</label><input type="text" id="editSupplyItemNote"></div>
+        <div class="modal-buttons">
+            <button type="button" onclick="saveSupplyItemEdit()">保存する</button>
+            <button type="button" class="btn-secondary" onclick="closeEditSupplyItemModal()">キャンセル</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let products = [];
+    let history = [];
+    let lockedMonths = [];
+    let supplyItems = [];
+    let backupHistory = null;
+    let inboundOverrides = {}; // 当月入庫の手入力上書き: { "YYYY-MM||商品名||区分": qty }
+    
+    // ★ 区分の全面変更（2026年7月分より）：商品仕入・消耗品・金券・ボトルチケット・貯蔵品の5区分のみ。
+    //   「月次棚卸・在庫高一覧表」「経費管理一覧表」「貯蔵品一覧表」に分かれていた表示を廃止し、
+    //   「月次棚卸・貯蔵品一覧表」の1つにすべての区分をまとめて表示する。
+    const CATEGORIES = ['商品仕入', '消耗品', '金券', 'ボトルチケット', '貯蔵品'];
+
+    // ★ 棚卸チェック表（月次棚卸・貯蔵品一覧表）の一番下に印刷する備品確認欄。
+    //   棚卸後にまとめて発注要否を確認するための初期リスト（products シートとは無関係）。
+    //   Webアプリ上の「④ 棚卸チェック表 備品確認欄の管理」から追加・削除でき、
+    //   その内容は supplyItems シートに保存される（supplyItems 変数がその実データ）。
+    //   このDEFAULT_SUPPLY_ITEMSは、supplyItemsシートが空（初回起動時）のときだけ使う初期値。
+    const DEFAULT_SUPPLY_ITEMS = [
+        'ラップ（リケンラップ ミニ 22×100）',
+        'A4用紙（αエコペーパータイプTR　324-7969）',
+        'キッチンペーパー',
+        '納品伝票　(マイクロミシン帳票白2分割4穴2500枚)',
+        'インシュロック',
+        '激落ちくん',
+        'ビニール手袋',
+        'チケット用紙',
+        'クリクラ後納封筒',
+        'トイレ洗剤',
+        '手洗い洗剤',
+        '食器洗い洗剤',
+        '食器洗いスポンジ',
+        'トイレットペーパー',
+        'ティッシュペーパー',
+        '事務用品',
+        '綿棒',
+        '歯ブラシ',
+        '切手 110円',
+        '返信用封筒'
+    ];
+    
+    let inventoryOpenState = {};
+    CATEGORIES.forEach((cat, idx) => {
+        inventoryOpenState[idx] = false;
+    });
+
+    const HISTORY_DISPLAY_DAYS = 60;
+    let showAllHistoryState = false;
+    let showExpiredHistoryState = false;
+
+    window.onload = function() {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        document.getElementById('targetMonth').value = `${yyyy}-${mm}`;
+        const dd = String(today.getDate()).padStart(2, '0');
+        document.getElementById('txDate').value = `${yyyy}-${mm}-${dd}`;
+        const filterSelect = document.getElementById('historyMonthFilter');
+        filterSelect.innerHTML = '<option value="">全ての期間</option>';
+        for(let i=0; i<12; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const val = `${y}-${m}`;
+            filterSelect.innerHTML += `<option value="${val}">${y}年${m}月</option>`;
+        }
+        // 月指定なしの場合でも、既定では直近60日の履歴だけを表示する。
+        filterSelect.value = '';
+        loadDataFromServer();
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, function(ch) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[ch];
+        });
+    }
+
+    // 商品が軽減税率対象かどうかを判定する。スプレッドシートに直接入力された場合、
+    // 値が真偽値(true)ではなく文字列("TRUE"/"true"/"1"/"○"等)で返ってくることがあるため、
+    // それらもまとめて「対象」として扱う。
+    function isReducedTax(p) {
+        const v = p && p.reducedTax;
+        if (v === true) return true;
+        if (typeof v === 'string') {
+            const s = v.trim().toLowerCase();
+            return s === 'true' || s === '1' || s === 'yes' || s === '○' || s === 'y';
+        }
+        if (typeof v === 'number') return v === 1;
+        return false;
+    }
+
+    // 商品名の右側に付ける「（軽減税率対象）」表記のHTML。対象でなければ空文字。
+    function reducedTaxLabel(p) {
+        if (!isReducedTax(p)) return '';
+        return ' <span class="reduced-tax-badge">（軽減税率対象）</span>';
+    }
+
+    // 商品マスターの createdMonth / inactiveMonth を "YYYY-MM" 形式に正規化する。
+    // スプレッドシート側でセルが日付型として保存されると、Date型や
+    // "2026-07-01 00:00" のような日時文字列で返ってくることがあるため、
+    // 時刻部分を切り捨てて年月だけに揃える（比較・表示のズレを防ぐ）。
+    function toMonthKey(value) {
+        if (!value) return '';
+        if (value instanceof Date) {
+            if (isNaN(value.getTime())) return '';
+            const y = value.getFullYear();
+            const m = String(value.getMonth() + 1).padStart(2, '0');
+            return `${y}-${m}`;
+        }
+        const s = String(value).trim();
+        const match = s.match(/^(\d{4})-(\d{2})/);
+        return match ? `${match[1]}-${match[2]}` : s;
+    }
+
+    // 実際に入力・処理した本当の日時（recordedAt, UTC ISO文字列）を、
+    // 表示用にローカル時刻の "YYYY/MM/DD HH:mm" 形式へ変換する。
+    function formatRecordedAt(isoString) {
+        if (!isoString) return '-';
+        const d = new Date(isoString);
+        if (isNaN(d.getTime())) return String(isoString);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mm = String(d.getMinutes()).padStart(2, '0');
+        return `${y}/${m}/${day} ${hh}:${mm}`;
+    }
+
+    function renderHandwritePrintButtons() {
+        const select = document.getElementById('handwritePrintCategory');
+        if (!select) return;
+
+        const selectedValue = select.value;
+        select.innerHTML = '';
+
+        const allOption = document.createElement('option');
+        allOption.value = '__ALL_GROUPS__';
+        allOption.textContent = '全部印刷（月次棚卸・貯蔵品）';
+        select.appendChild(allOption);
+
+        CATEGORIES.forEach(category => {
+            const count = products.filter(p => p.category === category && (p.status || 'active') !== 'inactive').length;
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category + ' (' + count + ')';
+            select.appendChild(option);
+        });
+
+        if (selectedValue === '__ALL_GROUPS__' || (selectedValue && CATEGORIES.includes(selectedValue))) {
+            select.value = selectedValue;
+        }
+    }
+
+    function printSelectedHandwriteInventorySheet() {
+        const select = document.getElementById('handwritePrintCategory');
+        const category = select?.value;
+        if (!category) {
+            alert('印刷する区分を選択してください。');
+            return;
+        }
+        if (category === '__ALL_GROUPS__') {
+            printAllHandwriteInventoryGroups();
+            return;
+        }
+        printHandwriteInventorySheet(category);
+    }
+
+    function getHandwritePrintArea() {
+        let printArea = document.getElementById('handwritePrintArea');
+        if (!printArea) {
+            printArea = document.createElement('div');
+            printArea.id = 'handwritePrintArea';
+            printArea.className = 'print-only-area';
+            document.body.appendChild(printArea);
+        }
+        return printArea;
+    }
+
+    function buildHandwriteSheetHtml(title, subtitle, sheetProducts, pageBreak, footerNote, supplyItems) {
+        const targetMonth = document.getElementById('targetMonth')?.value || '';
+        const rows = sheetProducts.length > 0
+            ? sheetProducts.map((p, index) => [
+                '<tr>',
+                '<td class="handwrite-col-no">' + (index + 1) + '</td>',
+                '<td class="handwrite-col-name">' + escapeHtml(p.name) + '</td>',
+                '<td class="handwrite-col-count"></td>',
+                '<td class="handwrite-col-check"></td>',
+                '<td class="handwrite-col-note">' + escapeHtml(p.note || '') + '</td>',
+                '</tr>'
+            ].join('')).join('')
+            : '<tr><td colspan="5" style="text-align:center; color:#6b7280;">対象の商品はありません。</td></tr>';
+
+        // ★ 一覧の一番下に表示する注記（例：ボトル在庫確認方法）。
+        //   footerNote が渡された場合のみ表示し、渡されなければ何も追加しない。
+        //   footerNote は { title, formula } の形式で渡す（title：何の算出方法か、formula：計算式本体）。
+        const footerNoteHtml = footerNote
+            ? [
+                '<div class="handwrite-sheet-footer-note">',
+                '<div class="handwrite-sheet-footer-note-title">' + escapeHtml(footerNote.title) + '</div>',
+                '<div class="handwrite-sheet-footer-note-formula">' + escapeHtml(footerNote.formula) + '</div>',
+                '</div>'
+            ].join('')
+            : '';
+
+        // ★ 棚卸後の備品発注要否を確認するための欄（商品表とは別に、末尾に追加する）。
+        //   supplyItems が渡された場合のみ表示する。
+        //   ・「確認」列は不要のため印刷しない（品名・実数記入欄・備考の3列のみ）。
+        //   ・備考列は「③ 棚卸チェック表 備品確認欄の管理」で入力した内容をそのまま印刷する。
+        const supplyRows = (supplyItems && supplyItems.length > 0)
+            ? supplyItems.map(function(item, index) {
+                const itemName = (typeof item === 'object' && item !== null) ? (item.name || '') : String(item || '');
+                const itemNote = (typeof item === 'object' && item !== null) ? (item.note || '') : '';
+                return [
+                    '<tr>',
+                    '<td class="handwrite-col-no">' + (index + 1) + '</td>',
+                    '<td class="handwrite-col-name">' + escapeHtml(itemName) + '</td>',
+                    '<td class="handwrite-col-count"></td>',
+                    '<td class="handwrite-col-note">' + escapeHtml(itemNote) + '</td>',
+                    '</tr>'
+                ].join('');
+            }).join('')
+            : '';
+
+        const supplySectionHtml = supplyRows
+            ? [
+                '<div class="handwrite-supply-section">',
+                '<h2 class="handwrite-supply-heading">📦 備品確認欄（発注要否チェック）</h2>',
+                '<table>',
+                '<thead>',
+                '<tr>',
+                '<th class="handwrite-col-no">No</th>',
+                '<th class="handwrite-col-name">品名</th>',
+                '<th class="handwrite-col-count">実数記入欄</th>',
+                '<th class="handwrite-col-note">備考</th>',
+                '</tr>',
+                '</thead>',
+                '<tbody>' + supplyRows + '</tbody>',
+                '</table>',
+                '</div>'
+            ].join('')
+            : '';
+
+        return [
+            '<div class="handwrite-sheet' + (pageBreak ? ' page-break-after' : '') + '">',
+            '<h1>' + escapeHtml(title) + '</h1>',
+            '<div class="handwrite-sheet-meta">',
+            '<div class="handwrite-meta-fixed">対象年月：' + escapeHtml(targetMonth) + '</div>',
+            '<div class="handwrite-meta-category">' + escapeHtml(subtitle) + '</div>',
+            '<div class="handwrite-meta-fixed">印刷日：' + new Date().toLocaleDateString('ja-JP') + '</div>',
+            '</div>',
+            '<table>',
+            '<thead>',
+            '<tr>',
+            '<th class="handwrite-col-no">No</th>',
+            '<th class="handwrite-col-name">商品名</th>',
+            '<th class="handwrite-col-count">実数記入欄</th>',
+            '<th class="handwrite-col-check">確認</th>',
+            '<th class="handwrite-col-note">備考</th>',
+            '</tr>',
+            '</thead>',
+            '<tbody>' + rows + '</tbody>',
+            '</table>',
+            footerNoteHtml,
+            supplySectionHtml,
+            '</div>'
+        ].join('');
+    }
+
+    function runHandwritePrint(html) {
+        const printArea = getHandwritePrintArea();
+        printArea.innerHTML = html;
+        document.body.classList.add('handwrite-print-mode');
+        const cleanup = function() {
+            document.body.classList.remove('handwrite-print-mode');
+            window.removeEventListener('afterprint', cleanup);
+        };
+        window.addEventListener('afterprint', cleanup);
+        window.focus();
+        window.print();
+    }
+
+    // 棚卸チェック表に印刷する商品を、月次棚卸・貯蔵品一覧表（renderInventoryTables）と
+    // 全く同じ条件・同じ並び順で取得する共通関数。
+    //   ・対象年月は「月次棚卸・貯蔵品一覧表」の対象年月入力欄（targetMonth）と共通のものを使う
+    //   ・表示可否の判定は isProductVisibleInMonth を使用（一覧表と同一ロジック）
+    //   ・区分内の並び順は products 配列の並び順（moveProduct の▲▼で並べ替えた順）をそのまま使う
+    //     → 一覧表側の catProducts と全く同じ生成方法にすることで、順番のズレを防ぐ
+    function getHandwritePrintProductsForCategory(category) {
+        const targetMonth = document.getElementById('targetMonth')?.value || '';
+        const previousStock = targetMonth ? computeStockAtTime(targetMonth) : {};
+        const fifoData = targetMonth ? computeFIFO(targetMonth) : {};
+        // ★ checkSheetVisible が false（＝商品マスターで「棚卸チェック表に表記する」の
+        //   チェックを外した商品）は、棚卸チェック表（手書き用の印刷帳票）からのみ除外する。
+        //   未設定（過去登録分）は従来通り表示対象＝trueとして扱う。
+        return products.filter(p => p.category === category && p.checkSheetVisible !== false && isProductVisibleInMonth(p, targetMonth, previousStock, fifoData));
+    }
+
+    function printHandwriteInventorySheet(category) {
+        const categoryProducts = getHandwritePrintProductsForCategory(category);
+        runHandwritePrint(buildHandwriteSheetHtml('棚卸チェック表', '区分：' + category, categoryProducts, false));
+    }
+
+    function printAllHandwriteInventoryGroups() {
+        // 月次棚卸・貯蔵品一覧表と同じ並び順にするため、CATEGORIES の順に
+        // 区分ごとの商品リストをそのまま連結する（一覧表側と同一の生成ロジック）。
+        const groupProducts = CATEGORIES.reduce(function(acc, category) {
+            return acc.concat(getHandwritePrintProductsForCategory(category));
+        }, []);
+        const sheet = buildHandwriteSheetHtml(
+            '棚卸チェック表（月次棚卸・貯蔵品一覧表）',
+            '区分：商品仕入・消耗品・金券・ボトルチケット・貯蔵品',
+            groupProducts,
+            false,
+            { title: 'ボトル在庫確認方法', formula: '当月使用数＝当月顧客出しボトル数+当月洗浄分\n当月棚卸数＝倉庫在庫+車内在庫+本社在庫\n※システムと棚卸管理システムの当月ボトル使用数が同じであれば 完了' },
+            supplyItems
+        );
+        runHandwritePrint(sheet);
+    }
+
+
+    function loadDataFromServer() {
+        google.script.run
+            .withSuccessHandler(function(data) {
+                let rawProducts = data.products || [];
+                products = rawProducts.map(p => ({
+                    ...p,
+                    defaultPrice: parseInt(p.defaultPrice, 10) || 0,
+                    createdMonth: toMonthKey(p.createdMonth),
+                    inactiveMonth: p.inactiveMonth ? toMonthKey(p.inactiveMonth) : (p.inactiveMonth || null),
+                    reactivateMonth: p.reactivateMonth ? toMonthKey(p.reactivateMonth) : (p.reactivateMonth || null),
+                    note: p.note || ''
+                }));
+                let rawLocked = data.lockedMonths || [];
+                lockedMonths = rawLocked.map(item => {
+                    if (typeof item === 'object' && item !== null) {
+                        return item.month || item.value || "";
+                    }
+                    return String(item || "");
+                }).filter(Boolean);
+
+                let rawSupplyItems = data.supplyItems || [];
+                supplyItems = rawSupplyItems.map(item => {
+                    if (typeof item === 'object' && item !== null) {
+                        return { name: item.name || item.value || "", note: item.note || "" };
+                    }
+                    return { name: String(item || ""), note: "" };
+                }).filter(item => item.name);
+                if (supplyItems.length === 0) {
+                    // 初回起動時（supplyItemsシートが空）は初期リストを使い、
+                    // 以後編集できるようにスプレッドシートにも保存しておく。
+                    supplyItems = DEFAULT_SUPPLY_ITEMS.map(name => ({ name: name, note: '' }));
+                    syncWithServer('supplyItems', supplyItems, function() {
+                        renderSupplyItemsManageList();
+                    });
+                }
+                renderSupplyItemsManageList();
+                
+                let rawHistory = data.history || [];
+                history = rawHistory.map(h => {
+                    let safeIso = h.isoDate;
+                    if (safeIso instanceof Date) safeIso = safeIso.toISOString();
+                    else if (typeof safeIso !== 'string') safeIso = String(safeIso || "");
+
+                    let safeDate = h.date;
+                    if (safeDate instanceof Date) {
+                        const y = safeDate.getFullYear();
+                        const m = String(safeDate.getMonth() + 1).padStart(2, '0');
+                        const d = String(safeDate.getDate()).padStart(2, '0');
+                        safeDate = `${y}-${m}-${d}`;
+                    } else if (typeof safeDate !== 'string') safeDate = String(safeDate || "");
+
+                    // 実際に入力・処理した本当の日時。古いデータ（recordedAt未登録）は
+                    // isoDateで代用表示する。
+                    let safeRecordedAt = h.recordedAt;
+                    if (safeRecordedAt instanceof Date) safeRecordedAt = safeRecordedAt.toISOString();
+                    else if (typeof safeRecordedAt !== 'string' || !safeRecordedAt) safeRecordedAt = safeIso;
+
+                    return {
+                        ...h,
+                        date: safeDate,
+                        isoDate: safeIso,
+                        recordedAt: safeRecordedAt,
+                        qty: parseInt(h.qty, 10) || 0,
+                        price: (h.price === '' || h.price === undefined || h.price === null) ? '' : (parseInt(h.price, 10) || 0)
+                    };
+                });
+                updateSelectOptions();
+                // 入庫手入力の上書きデータを復元
+                inboundOverrides = {};
+                history.forEach(h => {
+                    if (h.type === '入庫手入力') {
+                        const overrideKey = h.isoDate.substring(0, 7) + '||' + h.product + '||' + h.productCategory;
+                        inboundOverrides[overrideKey] = h.qty;
+                    }
+                });
+                renderAll();
+                diagnoseInventoryDuplicates();
+            })
+            .withFailureHandler(function(err) {
+                alert('データの読み込みに失敗しました: ' + err.message);
+            })
+            .getAllData();
+    }
+
+    // ★診断用: 同一商品・同一区分・同一月に「棚卸調整」レコードが複数存在する
+    //   （＝「当月棚卸数」の表示と「翌月の前月繰越」が食い違う原因になり得る）
+    //   ケースを洗い出し、ブラウザの開発者ツール（コンソール）に一覧表示する。
+    //   画面には表示されない裏方の関数。手動で確認したい場合は、コンソールで
+    //   diagnoseInventoryDuplicates() を実行すれば再表示できる。
+    function diagnoseInventoryDuplicates() {
+        const groups = {};
+        history.forEach(h => {
+            if (h.type !== '棚卸調整') return;
+            const monthPrefix = h.isoDate ? h.isoDate.substring(0, 7) : '(不明)';
+            const gKey = h.product + '||' + h.productCategory + '||' + monthPrefix;
+            if (!groups[gKey]) groups[gKey] = [];
+            groups[gKey].push(h);
+        });
+
+        const problems = Object.keys(groups).filter(k => groups[k].length > 1);
+        if (problems.length === 0) return;
+
+        console.warn(`【棚卸データ診断】同一商品・同一月の「棚卸調整」レコードが重複している箇所が ${problems.length} 件見つかりました。翌月の前月繰越とのズレの原因になっている可能性があります。`);
+        problems.forEach(k => {
+            const [prod, cat, month] = k.split('||');
+            console.warn(`  ・${month}  ${cat} / ${prod}`);
+            console.table(groups[k].map(h => ({ id: h.id, qty: h.qty, price: h.price, recordedAt: h.recordedAt })));
+        });
+    }
+
+    function syncWithServer(sheetName, dataArray, callback) {
+        const cleanData = JSON.parse(JSON.stringify(dataArray));
+        google.script.run
+            .withSuccessHandler(function() {
+                if(callback) callback();
+                else renderAll();
+            })
+            .withFailureHandler(function(err) {
+                alert('スプレッドシートへの保存に失敗しました。詳細: ' + err.message);
+                loadDataFromServer();
+            })
+            .saveSheetData(sheetName, cleanData);
+    }
+
+    // ★「③ 棚卸チェック表 備品確認欄の管理」用の一覧表示・追加・削除処理。
+    //   supplyItems 配列（{ name, note } オブジェクトの配列）を supplyItems シートと同期する。
+    function renderSupplyItemsManageList() {
+        const container = document.getElementById('supplyItemsList');
+        if (!container) return;
+        container.innerHTML = '';
+
+        if (supplyItems.length === 0) {
+            container.innerHTML = '<div style="color:#94a3b8; font-size:0.85em; padding:6px 0;">登録された備品がありません。上のフォームから追加してください。</div>';
+            return;
+        }
+
+        supplyItems.forEach((item, index) => {
+            const name = item.name;
+            const row = document.createElement('div');
+            row.className = 'master-item';
+            row.style.padding = '6px 10px';
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'master-info';
+            infoDiv.style.display = 'flex';
+            infoDiv.style.flexDirection = 'row';
+            infoDiv.style.alignItems = 'center';
+            infoDiv.style.gap = '10px';
+            infoDiv.style.flex = '1';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = name;
+            nameSpan.style.fontWeight = '600';
+            nameSpan.style.minWidth = '120px';
+            infoDiv.appendChild(nameSpan);
+
+            row.appendChild(infoDiv);
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'master-btn-group';
+            const escName = name.replace(/'/g, "\\'");
+            const isFirst = index === 0;
+            const isLast = index === supplyItems.length - 1;
+            btnGroup.innerHTML = `<button type="button" class="master-btn btn-sort" ${isFirst ? 'disabled' : ''} onclick="moveSupplyItem('${escName}', 'up')">▲</button>`
+                + `<button type="button" class="master-btn btn-sort" ${isLast ? 'disabled' : ''} onclick="moveSupplyItem('${escName}', 'down')">▼</button>`
+                + `<button type="button" class="master-btn btn-edit" title="編集" onclick="editSupplyItem('${escName}')">✏️</button>`
+                + `<button type="button" class="master-btn btn-delete" title="削除" onclick="deleteSupplyItem('${escName}')">×</button>`;
+            row.appendChild(btnGroup);
+
+            container.appendChild(row);
+        });
+    }
+
+    function findSupplyItemIndexByName(name) {
+        return supplyItems.findIndex(item => item.name === name);
+    }
+
+    function moveSupplyItem(name, direction) {
+        const index = findSupplyItemIndexByName(name);
+        if (index === -1) return;
+        const targetIndex = direction === 'up' ? index - 1 : index + 1;
+        if (targetIndex < 0 || targetIndex >= supplyItems.length) return;
+        const temp = supplyItems[index];
+        supplyItems[index] = supplyItems[targetIndex];
+        supplyItems[targetIndex] = temp;
+        saveSupplyItems();
+    }
+
+    function addSupplyItem() {
+        const input = document.getElementById('supplyItemName');
+        const noteInput = document.getElementById('supplyItemNote');
+        const name = (input.value || '').trim();
+        const note = (noteInput?.value || '').trim();
+        if (!name) {
+            alert('品名を入力してください。');
+            return;
+        }
+        if (supplyItems.some(item => item.name === name)) {
+            alert('その品名はすでに登録されています。');
+            return;
+        }
+        supplyItems.push({ name: name, note: note });
+        input.value = '';
+        if (noteInput) noteInput.value = '';
+        saveSupplyItems();
+    }
+
+    function editSupplyItem(oldName) {
+        const index = findSupplyItemIndexByName(oldName);
+        if (index === -1) return;
+        document.getElementById('editSupplyItemOldName').value = oldName;
+        document.getElementById('editSupplyItemName').value = oldName;
+        document.getElementById('editSupplyItemNote').value = supplyItems[index].note || '';
+        document.getElementById('editSupplyItemModal').style.display = 'flex';
+    }
+
+    function closeEditSupplyItemModal() {
+        document.getElementById('editSupplyItemModal').style.display = 'none';
+    }
+
+    function saveSupplyItemEdit() {
+        const oldName = document.getElementById('editSupplyItemOldName').value;
+        const newName = document.getElementById('editSupplyItemName').value.trim();
+        const newNote = document.getElementById('editSupplyItemNote').value.trim();
+
+        if (!newName) {
+            alert('品名を入力してください。');
+            return;
+        }
+        if (newName !== oldName && supplyItems.some(item => item.name === newName)) {
+            alert('その品名はすでに登録されています。');
+            return;
+        }
+        const index = findSupplyItemIndexByName(oldName);
+        if (index === -1) return;
+        supplyItems[index].name = newName;
+        supplyItems[index].note = newNote;
+        closeEditSupplyItemModal();
+        saveSupplyItems();
+    }
+
+    function deleteSupplyItem(name) {
+        if (!confirm(`「${name}」を備品確認欄から削除しますか？`)) return;
+        supplyItems = supplyItems.filter(item => item.name !== name);
+        saveSupplyItems();
+    }
+
+    function saveSupplyItems() {
+        syncWithServer('supplyItems', supplyItems.map(item => ({ name: item.name, note: item.note || '' })), function() {
+            renderSupplyItemsManageList();
+        });
+    }
+
+    function toggleAccordion(id) {
+        const content = document.getElementById(id);
+        const icon = document.getElementById('icon-' + id);
+        if (content.classList.contains('open')) {
+            content.classList.remove('open');
+            content.style.maxHeight = '0px';
+            icon.innerText = '▼';
+        } else {
+            content.classList.add('open');
+            content.style.maxHeight = content.scrollHeight + 'px';
+            icon.innerText = '▲';
+        }
+    }
+
+    // 開いている商品マスターのアコーディオンは、商品の追加・編集で中身の高さが変わっても
+    // 表示が途切れないよう、再描画のたびに高さを再計算する。
+    function refreshOpenAccordionHeights() {
+        document.querySelectorAll('.accordion-content.open').forEach(content => {
+            content.style.maxHeight = content.scrollHeight + 'px';
+        });
+    }
+
+    function toggleInventoryAccordion(headerElem, contentId, idx) {
+        const content = document.getElementById(contentId);
+        const icon = headerElem.querySelector('.inv-acc-icon');
+        if (content.classList.contains('open')) {
+            content.classList.remove('open');
+            icon.innerText = '＋';
+            inventoryOpenState[idx] = false;
+        } else {
+            content.classList.add('open');
+            icon.innerText = '－';
+            inventoryOpenState[idx] = true;
+        }
+    }
+
+    function onTargetMonthChange() {
+        // 履歴データログの月フィルターは対象年月には連動させない（常に「全ての期間」等、
+        // ユーザーが選んだ状態を維持する）。
+        renderAll();
+    }
+
+    function shiftTargetMonth(diff) {
+        const input = document.getElementById('targetMonth');
+        const current = input.value;
+        if (!current) return;
+        const [y, m] = current.split('-').map(Number);
+        const d = new Date(y, (m - 1) + diff, 1);
+        const newY = d.getFullYear();
+        const newM = String(d.getMonth() + 1).padStart(2, '0');
+        input.value = `${newY}-${newM}`;
+        onTargetMonthChange();
+    }
+
+    function onProductSelectChange() {
+        const select = document.getElementById('txProduct');
+        const selectedValue = select.value;
+        const priceInput = document.getElementById('txPrice');
+        if (!selectedValue) {
+            priceInput.value = '';
+            return;
+        }
+        const [name, category] = selectedValue.split('||');
+        const productObj = products.find(p => p.name === name && p.category === category);
+        if (productObj) {
+            priceInput.value = productObj.defaultPrice;
+        } else {
+            priceInput.value = '';
+        }
+    }
+
+    document.getElementById('productForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (isCurrentMonthLocked()) return;
+        const nameInput = document.getElementById('prodName');
+        const categoryInput = document.getElementById('prodCategory');
+        const priceInput = document.getElementById('prodDefaultPrice');
+        const reducedTaxInput = document.getElementById('prodReducedTax');
+        const checkSheetVisibleInput = document.getElementById('prodCheckSheetVisible');
+        const noteInput = document.getElementById('prodNote');
+        const name = nameInput.value.trim();
+        const category = categoryInput.value;
+        const defaultPrice = parseInt(priceInput.value, 10) || 0;
+        const reducedTax = !!reducedTaxInput.checked;
+        const checkSheetVisible = !!checkSheetVisibleInput.checked;
+        const note = noteInput.value.trim();
+
+        if(!name) {
+            alert('商品名を入力してください。');
+            return;
+        }
+        if(products.some(p => p.name === name && p.category === category)) {
+            alert(`同一の区分「${category}」に、その商品名は既に登録されています。`);
+            return;
+        }
+
+        // createdMonth: この商品が「対象年月」として選択されている月から履歴表示の対象とする。
+        // 過去の月次一覧表には遡って表示させないための目印。
+        const createdMonth = document.getElementById('targetMonth').value || (function() {
+            const d = new Date();
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        })();
+        products.push({ name: name, category: category, defaultPrice: defaultPrice, status: 'active', createdMonth: createdMonth, reducedTax: reducedTax, checkSheetVisible: checkSheetVisible, note: note });
+        nameInput.value = '';
+        priceInput.value = '';
+        reducedTaxInput.checked = false;
+        checkSheetVisibleInput.checked = true;
+        noteInput.value = '';
+        nameInput.focus();
+
+        let targetAccId = 'acc-purchase';
+        if (category === '消耗品') targetAccId = 'acc-consumable';
+        if (category === '貯蔵品') targetAccId = 'acc-stored';
+        if (category === '金券') targetAccId = 'acc-quocard';
+        if (category === 'ボトルチケット') targetAccId = 'acc-bottleticket';
+
+        document.getElementById(targetAccId).classList.add('open');
+        document.getElementById('icon-' + targetAccId).innerText = '▲';
+
+        updateSelectOptions();
+        renderAll();
+        syncWithServer('products', products);
+    });
+
+    function moveProduct(name, category, direction) {
+        if (isCurrentMonthLocked()) return;
+        const index = products.findIndex(p => p.name === name && p.category === category);
+        if (index === -1) return;
+        let targetIndex = index;
+
+        if (direction === 'up') {
+            for (let i = index - 1; i >= 0; i--) {
+                if (products[i].category === category) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        } else if (direction === 'down') {
+            for (let i = index + 1; i < products.length; i++) {
+                if (products[i].category === category) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (index !== targetIndex) {
+            const temp = products[index];
+            products.splice(index, 1);
+            products.splice(targetIndex, 0, temp);
+            updateSelectOptions();
+            renderAll();
+            syncWithServer('products', products);
+        }
+    }
+
+    function openEditModal(name, category) {
+        if (isCurrentMonthLocked()) return;
+        const currentProd = products.find(p => p.name === name && p.category === category);
+        if (!currentProd) return;
+        document.getElementById('editOldName').value = name;
+        document.getElementById('editOldCategory').value = category;
+        document.getElementById('editModalName').value = name;
+        document.getElementById('editModalCategory').value = category;
+        document.getElementById('editModalPrice').value = currentProd.defaultPrice;
+        document.getElementById('editModalReducedTax').checked = !!currentProd.reducedTax;
+        document.getElementById('editModalCheckSheetVisible').checked = (currentProd.checkSheetVisible !== false);
+        document.getElementById('editModalNote').value = currentProd.note || '';
+        document.getElementById('editModalStatus').value = currentProd.status || 'active';
+        document.getElementById('editModal').style.display = 'flex';
+    }
+
+    document.body.addEventListener('click', function(e) {
+        if(e.target.classList.contains('modal-overlay')) {
+            closeEditModal();
+            closeEditHistoryModal();
+        }
+    });
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    function saveProductEdit() {
+        if (isCurrentMonthLocked()) return;
+        const oldName = document.getElementById('editOldName').value;
+        const oldCategory = document.getElementById('editOldCategory').value;
+        const newName = document.getElementById('editModalName').value.trim();
+        const newCategory = document.getElementById('editModalCategory').value;
+        const newPrice = parseInt(document.getElementById('editModalPrice').value, 10) || 0;
+        const newReducedTax = !!document.getElementById('editModalReducedTax').checked;
+        const newCheckSheetVisible = !!document.getElementById('editModalCheckSheetVisible').checked;
+        const newNote = document.getElementById('editModalNote').value.trim();
+        const newStatus = document.getElementById('editModalStatus').value || 'active';
+
+        if (newName === '') {
+            alert('商品名が空欄です。');
+            return;
+        }
+        if ((newName !== oldName || newCategory !== oldCategory) && products.some(p => p.name === newName && p.category === newCategory)) {
+            alert(`「${newCategory}」の区分内に、同じ商品名が既に存在します。`);
+            return;
+        }
+
+        const currentProd = products.find(p => p.name === oldName && p.category === oldCategory);
+        if (currentProd) {
+            const wasActive = (currentProd.status || 'active') !== 'inactive';
+            currentProd.name = newName;
+            currentProd.category = newCategory;
+            currentProd.defaultPrice = newPrice;
+            currentProd.reducedTax = newReducedTax;
+            currentProd.checkSheetVisible = newCheckSheetVisible;
+            currentProd.note = newNote;
+            currentProd.status = newStatus;
+
+            // inactiveMonth / reactivateMonth: 「③当月追加商品・取扱終了商品」で当月分の判定に使う目印
+            if (newStatus === 'inactive') {
+                if (wasActive) {
+                    currentProd.inactiveMonth = document.getElementById('targetMonth').value || currentProd.inactiveMonth;
+                }
+                currentProd.reactivateMonth = null;
+            } else {
+                if (!wasActive) {
+                    currentProd.reactivateMonth = document.getElementById('targetMonth').value || currentProd.reactivateMonth;
+                }
+                currentProd.inactiveMonth = null;
+            }
+        }
+
+        history.forEach(h => {
+            if (h.product === oldName && h.productCategory === oldCategory) {
+                h.product = newName;
+                h.productCategory = newCategory;
+            }
+        });
+
+        closeEditModal();
+        renderAll();
+        syncWithServer('products', products, function() {
+            syncWithServer('history', history);
+        });
+    }
+
+    function deleteProduct(name, category) {
+        if (isCurrentMonthLocked()) return;
+
+        const hasHistory = history.some(h => h.product === name && h.productCategory === category);
+        if (hasHistory) {
+            alert(`商品「${name}」には過去の入出庫・棚卸履歴が存在するため、削除すると過去のデータも失われてしまいます。\n\nそのため削除はできません。\n取り扱いをやめる場合は「✏️」ボタンから編集し、状態を「🚫 取り扱い終了」に変更してください。\n（過去のデータはそのまま保存され、以後の新規入庫の選択肢からのみ除外されます）`);
+            return;
+        }
+
+        // 履歴が一件も存在しない商品のみ、安全にマスターから完全削除できる
+        if (!confirm(`商品「${name} (${category})」を削除しますか？\n※この商品にはまだ入出庫・棚卸の履歴がないため、安全に削除できます。`)) return;
+        products = products.filter(p => !(p.name === name && p.category === category));
+        renderAll();
+        syncWithServer('products', products);
+    }
+
+    function toggleProductStatus(name, category) {
+        if (isCurrentMonthLocked()) return;
+        const p = products.find(p => p.name === name && p.category === category);
+        if (!p) return;
+
+        const isCurrentlyActive = (p.status || 'active') !== 'inactive';
+        const newStatus = isCurrentlyActive ? 'inactive' : 'active';
+        const msg = isCurrentlyActive
+            ? `商品「${name}」の取り扱いを終了しますか？\n\n・過去の棚卸・入出庫データはそのまま保存されます。\n・以後、新規の入庫登録の選択肢から外れます。\n・在庫が残っている月は引き続き一覧表に表示されます。`
+            : `商品「${name}」を「販売中」に戻しますか？\n以後、再び入庫登録の選択肢に表示されます。`;
+        if (!confirm(msg)) return;
+
+        p.status = newStatus;
+        if (newStatus === 'inactive') {
+            // inactiveMonth: 「③当月追加商品・取扱終了商品」で当月分の判定に使う目印
+            p.inactiveMonth = document.getElementById('targetMonth').value || p.inactiveMonth;
+            p.reactivateMonth = null;
+        } else {
+            // reactivateMonth: 取り扱いを再開した月の目印（③・①の「取扱再開日」表示に使用）
+            p.reactivateMonth = document.getElementById('targetMonth').value || p.reactivateMonth;
+            p.inactiveMonth = null;
+        }
+        renderAll();
+        syncWithServer('products', products);
+    }
+
+    document.getElementById('transactionForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        if (isCurrentMonthLocked()) return;
+        const selectedValue = document.getElementById('txProduct').value;
+        let qty = parseInt(document.getElementById('txQty').value, 10);
+        if(!selectedValue) {
+            alert('商品を選択してください。');
+            return;
+        }
+        const [productName, productCategory] = selectedValue.split('||');
+        let rawPriceInput = document.getElementById('txPrice').value;
+        let price = 0;
+        if (rawPriceInput === '') {
+            const productObj = products.find(p => p.name === productName && p.category === productCategory);
+            price = productObj ? productObj.defaultPrice : 0;
+        } else {
+            price = parseInt(rawPriceInput, 10) || 0;
+        }
+
+        const selectedMonth = document.getElementById('targetMonth').value;
+        const now = new Date();
+
+        // 仕入れた日付（FIFOの基準日）。未入力時は対象年月の1日にフォールバック。
+        const purchaseDateInput = document.getElementById('txDate').value;
+        let dayStr = '01';
+        if (purchaseDateInput) {
+            const inputDay = parseInt(purchaseDateInput.split('-')[2], 10);
+            // 対象年月に存在する最終日でクランプする（例：対象月2月に31日が入力された場合は28/29日に丸める）。
+            const [ySel, mSel] = selectedMonth.split('-').map(Number);
+            const lastDayOfSelectedMonth = new Date(ySel, mSel, 0).getDate();
+            const clampedDay = Math.min(Math.max(inputDay, 1), lastDayOfSelectedMonth);
+            dayStr = String(clampedDay).padStart(2, '0');
+        }
+        const timeStr = now.toTimeString().split(' ')[0];
+        const dummyIso = `${selectedMonth}-${dayStr}T${timeStr}.000Z`;
+
+        const newRow = {
+            id: dummyIso + '_' + Math.random().toString(36).substr(2, 9),
+            date: `${selectedMonth}-${dayStr} ${timeStr.substring(0,5)}`,
+            isoDate: dummyIso,
+            purchaseDate: purchaseDateInput || `${selectedMonth}-${dayStr}`, // 実際に入力された仕入日（表示・参照用）
+            product: productName,
+            productCategory: productCategory,
+            type: '仕入',
+            qty: qty,
+            price: price,
+            recordedAt: now.toISOString() // 実際に入力・処理した本当の日時（対象年月とは別管理）
+        };
+
+        const submitBtn = document.getElementById('btnTxSubmit');
+        const originalText = submitBtn ? submitBtn.innerText : '⚡ 仕入ロットを確定・記録';
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerText = '処理中...';
+        }
+
+        google.script.run
+            .withSuccessHandler(function() {
+                try {
+                    history.push(newRow);
+                    document.getElementById('txQty').value = '';
+                    document.getElementById('txPrice').value = '';
+                    renderAll();
+                } catch(innerErr) {
+                    console.error(innerErr);
+                } finally {
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = originalText;
+                    }
+                }
+            })
+            .withFailureHandler(function(err) {
+                alert('サーバー処理中にエラーが発生しました: ' + err.message);
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerText = originalText;
+                }
+            })
+            .addHistoryRow(newRow);
+    });
+
+    function updateSelectOptions() {
+        const filterCategory = document.getElementById('txFilterCategory').value;
+        const txProduct = document.getElementById('txProduct');
+        txProduct.innerHTML = '<option value="">-- 商品を選択 --</option>';
+
+        products.forEach(p => {
+            if ((p.status || 'active') === 'inactive') return; // 取扱終了商品は新規入庫の選択肢に出さない
+            if (!filterCategory || p.category === filterCategory) {
+                const opt = document.createElement('option');
+                opt.value = p.name + '||' + p.category;
+                opt.innerText = `[${p.category}] ${p.name} (単価: ¥${p.defaultPrice.toLocaleString()})`;
+                txProduct.appendChild(opt);
+            }
+        });
+        onProductSelectChange();
+    }
+
+    function isCurrentMonthLocked() {
+        const m = document.getElementById('targetMonth').value;
+        return lockedMonths.includes(m);
+    }
+
+    function checkLockStatus() {
+        const m = document.getElementById('targetMonth').value;
+        const isLocked = lockedMonths.includes(m);
+        const btn = document.getElementById('btnLockToggle');
+        const badge = document.getElementById('lockBadge');
+        const appBody = document.getElementById('appBody');
+
+        if (isLocked) {
+            btn.innerText = '🔓 仮締めを解除する';
+            btn.classList.add('locked');
+            badge.style.display = 'inline-block';
+            appBody.classList.add('is-locked');
+            document.getElementById('btnProductSubmit').disabled = true;
+            document.getElementById('btnTxSubmit').disabled = true;
+        } else {
+            btn.innerText = '🔒 選択月を仮締めする';
+            btn.classList.remove('locked');
+            badge.style.display = 'none';
+            appBody.classList.remove('is-locked');
+            document.getElementById('btnProductSubmit').disabled = false;
+            document.getElementById('btnTxSubmit').disabled = false;
+        }
+    }
+
+    function toggleMonthLock() {
+        const m = document.getElementById('targetMonth').value;
+        if (!m) return;
+        const idx = lockedMonths.indexOf(m);
+        if (idx > -1) {
+            if(!confirm(`${m} 月の仮締めを解除しますか？\n棚卸入力や編集が再度可能になります。`)) return;
+            lockedMonths.splice(idx, 1);
+        } else {
+            if(!confirm(`${m} 月の仮締めを実行しますか？\nこの月の棚卸数値・マスター追加等がロックされます。`)) return;
+            lockedMonths.push(m);
+        }
+        renderAll();
+        // 読み込み側（loadDataFromServer）は {month: "YYYY-MM"} 形式のオブジェクト配列を
+        // 前提にしているため、保存時も同じ形式に揃える（生の文字列配列のままだと
+        // サーバー側のシート書き込み処理が列を認識できず、再起動後に仮締めが
+        // 消えてしまう不具合の原因になっていた）。
+        syncWithServer('lockedMonths', lockedMonths.map(m => ({ month: m })));
+    }
+
+    // 商品名・区分・対象年月（YYYY-MM）が一致する「棚卸調整」レコードを1件だけ返す共通関数。
+    // ★重要: 過去のデータ不整合等により、同一商品・同一月に棚卸調整レコードが
+    //   複数残ってしまっているケース（例：ZiACOパウチの6月分が重複していた等）があっても、
+    //   「当月棚卸数」の表示（computeInventoryLine）と「翌月の前月繰越」の算出
+    //   （computeStockAtTime）が必ず同じ1件を参照するようにする。
+    //   これにより「当月棚卸数は39なのに翌月の前月繰越が1になる」といった不一致を防ぐ。
+    //   複数該当時は recordedAt（実際に記録・保存した日時）が最も新しいものを正とする。
+    function findInventoryAdjustment(prodName, prodCat, monthPrefix) {
+        let latest = null;
+        for (let i = 0; i < history.length; i++) {
+            const h = history[i];
+            if (h.type !== '棚卸調整') continue;
+            if (h.product !== prodName || h.productCategory !== prodCat) continue;
+            if (h.isoDate.substring(0, 7) !== monthPrefix) continue;
+            if (!latest || (h.recordedAt || '') > (latest.recordedAt || '')) {
+                latest = h;
+            }
+        }
+        return latest;
+    }
+
+    // 指定されたタイミングまでの集計状態を取得するヘルパー関数
+    // 前月繰越＝「対象月の1つ前の月」の棚卸調整数量をそのまま引き継ぐ。
+    // 前月に棚卸調整の記録が無ければ0繰越（それより古い月まで遡って探さない）。
+    // ※一覧表の「当月棚卸数」表示（＝棚卸調整レコードが無ければ0）とロジックを揃えることで、
+    //   当月棚卸数が0（または未入力＝0扱い）の月の翌月は、必ず前月繰越0になるようにする。
+    function computeStockAtTime(untilIsoPrefix) {
+        // 対象月の1つ前の月（YYYY-MM）を算出
+        const [y, m] = untilIsoPrefix.split('-').map(Number);
+        let prevY = y, prevM = m - 1;
+        if (prevM === 0) { prevM = 12; prevY -= 1; }
+        const prevMonthPrefix = `${prevY}-${String(prevM).padStart(2, '0')}`;
+
+        // 各商品について「前月の棚卸調整」を探す（前月のみ。それより前は見ない）
+        // ※ findInventoryAdjustment を使うことで、当月棚卸数の表示側と全く同じ
+        //   レコード選択ロジックになるように揃えている（重複データがあっても不一致にならない）。
+        let prevAdjState = {};
+        products.forEach(p => {
+            const adj = findInventoryAdjustment(p.name, p.category, prevMonthPrefix);
+            prevAdjState[p.name + '||' + p.category] = adj ? { qty: adj.qty, price: adj.price } : null;
+        });
+
+        let result = {};
+        products.forEach(p => {
+            const key = p.name + '||' + p.category;
+            const adj = prevAdjState[key];
+
+            if (adj) {
+                // 前月に棚卸調整の記録があれば、その数量（0であっても）をそのまま引き継ぐ
+                result[key] = {
+                    totalQty: adj.qty,
+                    totalPrice: adj.qty * adj.price,
+                    lots: [{ qty: adj.qty, price: adj.price }]
+                };
+            } else {
+                // 前月に棚卸調整の記録がない → 0繰越
+                result[key] = {
+                    totalQty: 0,
+                    totalPrice: 0,
+                    lots: [{ qty: 0, price: p.defaultPrice }]
+                };
+            }
+        });
+        return result;
+    }
+
+    function computeFIFO(targetMonth) {
+        let stockState = {};
+        products.forEach(p => {
+            stockState[p.name + '||' + p.category] = [];
+        });
+
+        let sortedHistory = [...history].sort((a,b) => a.isoDate.localeCompare(b.isoDate));
+
+        sortedHistory.forEach(h => {
+            // 年月文字列比較で対象月以降のレコードを除外（タイムゾーン問題を回避）
+            if (h.isoDate.substring(0, 7) >= targetMonth) return;
+
+            const key = h.product + '||' + h.productCategory;
+            if (!stockState[key]) stockState[key] = [];
+
+            // computeFIFO は仕入ロットのみを積み上げる。
+            // 棚卸調整は繰越処理しない（当月棚卸数・前月繰越はhistoryから直接参照）。
+            if (h.type === '仕入') {
+                stockState[key].push({ qty: h.qty, price: h.price });
+            }
+        });
+
+        let result = {};
+        products.forEach(p => {
+            const key = p.name + '||' + p.category;
+            let currentLots = stockState[key] || [];
+
+            let totalQty = 0;
+            let totalPrice = 0;
+            let details = [];
+
+            currentLots.forEach(lot => {
+                if (lot.qty > 0) {
+                    totalQty += lot.qty;
+                    totalPrice += lot.qty * lot.price;
+                    details.push({ qty: lot.qty, price: lot.price });
+                }
+            });
+
+            result[key] = {
+                totalQty: totalQty,
+                totalPrice: totalPrice,
+                lots: details,
+                defaultPrice: p.defaultPrice
+            };
+        });
+
+        return result;
+    }
+
+    // 対象月の一覧表に、その商品を表示すべきかどうかを判定する
+    // ルール：
+    //  1. 「取り扱い終了」より前に商品が追加された月がある場合、追加月より前の月には表示しない（新規追加を過去に遡って反映させない）
+    //  2. 「販売中」の商品は常に表示する
+    //  3. 「取り扱い終了」の商品でも、対象月に在庫（前月繰越・当月累計）や履歴が存在する場合はそのまま表示する（過去データを消さない）
+    // ★ 商品の動き（在庫・仕入）が0であっても、対象年月時点で登録済みの商品は
+    //   月次棚卸・貯蔵品一覧表（および、そのPDF出力）に必ず表示する。
+    //   除外するのは「対象年月より後に新規登録された商品」だけ（まだ存在しない月には出さない）。
+    function isProductVisibleInMonth(p, targetMonth, previousStock, fifoData) {
+        const createdMonth = toMonthKey(p.createdMonth);
+        if (createdMonth && targetMonth < createdMonth) return false;
+
+        const status = p.status || 'active';
+        if (status !== 'inactive') return true; // 販売中は常に表示
+
+        const inactiveMonth = toMonthKey(p.inactiveMonth);
+        // 取り扱い終了した月までは（終了月当月を含め）表示する
+        if (!inactiveMonth || targetMonth <= inactiveMonth) return true;
+
+        // 取り扱い終了した月より後の月 → 在庫（前月繰越・当月累計仕入）が
+        // 残っている場合のみ表示する
+        const key = p.name + '||' + p.category;
+        const prevQty = (previousStock && previousStock[key]) ? previousStock[key].totalQty : 0;
+        const inQty = (fifoData && fifoData[key]) ? fifoData[key].totalQty : 0;
+        if (prevQty !== 0 || inQty !== 0) return true;
+
+        // 在庫が0でも、対象月中に履歴（棚卸調整・商品不明など）が
+        // 記録されていれば表示する（過去データを消さないため）
+        const hasHistoryThisMonth = history.some(function(h) {
+            return h.product === p.name &&
+                h.productCategory === p.category &&
+                h.isoDate && h.isoDate.substring(0, 7) === targetMonth;
+        });
+        if (hasHistoryThisMonth) return true;
+
+        // それ以外（取扱終了後、在庫も履歴も無い）は一覧表から除外する
+        return false;
+    }
+
+    // 再描画（renderAll）はテーブルのinput要素をHTMLごと作り直すため、
+    // 他の欄を入力中にデバウンス保存が発火して再描画されると、フォーカス中の入力欄が
+    // 丸ごと作り直されてフォーカス・入力内容が失われてしまう。
+    // そのため再描画前後でフォーカス状態（どの欄か・入力途中の値・カーソル位置）を保持する。
+    function captureFocusedInput() {
+        const el = document.activeElement;
+        if (!el || !el.hasAttribute || !el.hasAttribute('data-focuskey')) return null;
+        return {
+            key: el.getAttribute('data-focuskey'),
+            value: el.value,
+            selStart: (typeof el.selectionStart === 'number') ? el.selectionStart : null,
+            selEnd: (typeof el.selectionEnd === 'number') ? el.selectionEnd : null
+        };
+    }
+
+    function restoreFocusedInput(captured) {
+        if (!captured) return;
+        const el = document.querySelector(`[data-focuskey="${CSS.escape(captured.key)}"]`);
+        if (!el) return;
+        // 保存確定済みの欄でなければ（=入力途中だった欄）、ユーザーが入力していた値を復元する
+        if (el.value !== captured.value) el.value = captured.value;
+        el.focus();
+        if (captured.selStart !== null && captured.selEnd !== null && el.setSelectionRange) {
+            try { el.setSelectionRange(captured.selStart, captured.selEnd); } catch(e) {}
+        }
+    }
+
+    function renderAll() {
+        const focused = captureFocusedInput();
+        syncTargetMonthInputs();
+        checkLockStatus();
+        renderProductMasterLists();
+        renderMonthlyProductChanges();
+        renderInventoryTables();
+        renderHistoryTable();
+        renderHandwritePrintButtons();
+        restoreFocusedInput(focused);
+    }
+
+    // 3 当月追加商品・取扱終了商品
+    // 「1 商品マスター登録」で当月（対象年月）に追加された商品、または当月に取扱終了となった商品を一覧表示する。
+    // 対象がなければ「当月変動なし」と表示する。
+    function renderMonthlyProductChanges() {
+        const container = document.getElementById('monthlyProductChangesContainer');
+        if (!container) return;
+
+        const targetMonth = document.getElementById('targetMonth').value;
+        if (!targetMonth) {
+            container.innerHTML = '';
+            return;
+        }
+
+        const addedProducts = products.filter(function(p) { return toMonthKey(p.createdMonth) === targetMonth; });
+        const discontinuedProducts = products.filter(function(p) {
+            return (p.status || 'active') === 'inactive' && toMonthKey(p.inactiveMonth) === targetMonth;
+        });
+        const reactivatedProducts = products.filter(function(p) {
+            return (p.status || 'active') !== 'inactive' && p.reactivateMonth && toMonthKey(p.reactivateMonth) === targetMonth;
+        });
+
+        if (addedProducts.length === 0 && discontinuedProducts.length === 0 && reactivatedProducts.length === 0) {
+            container.innerHTML = '<p style="margin:0; color:#64748b; font-size:0.9em;">当月変動なし</p>';
+            return;
+        }
+
+        var html = '';
+
+        if (addedProducts.length > 0) {
+            html += '<div style="margin-bottom:12px;">';
+            html += '<label style="color:#166534;">🆕 当月追加商品</label>';
+            html += '<ul style="margin:6px 0 0; padding-left:20px;">';
+            addedProducts.forEach(function(p) {
+                html += '<li style="margin-bottom:2px;"><span style="font-size:0.8em; color:#64748b;">【' + escapeHtml(p.category) + '】</span>' + escapeHtml(p.name) + '　<span style="font-size:0.8em; color:#64748b;">通常単価: ¥' + p.defaultPrice.toLocaleString() + '</span></li>';
+            });
+            html += '</ul></div>';
+        }
+
+        if (reactivatedProducts.length > 0) {
+            html += '<div style="margin-bottom:12px;">';
+            html += '<label style="color:#1e40af;">🔄 当月取扱再開商品</label>';
+            html += '<ul style="margin:6px 0 0; padding-left:20px;">';
+            reactivatedProducts.forEach(function(p) {
+                html += '<li style="margin-bottom:2px;"><span style="font-size:0.8em; color:#64748b;">【' + escapeHtml(p.category) + '】</span>' + escapeHtml(p.name) + '　<span style="font-size:0.8em; color:#64748b;">通常単価: ¥' + p.defaultPrice.toLocaleString() + '</span></li>';
+            });
+            html += '</ul></div>';
+        }
+
+        if (discontinuedProducts.length > 0) {
+            html += '<div>';
+            html += '<label style="color:#991b1b;">🚫 当月取扱終了商品</label>';
+            html += '<ul style="margin:6px 0 0; padding-left:20px;">';
+            discontinuedProducts.forEach(function(p) {
+                html += '<li style="margin-bottom:2px;"><span style="font-size:0.8em; color:#64748b;">【' + escapeHtml(p.category) + '】</span>' + escapeHtml(p.name) + '　<span style="font-size:0.8em; color:#64748b;">通常単価: ¥' + p.defaultPrice.toLocaleString() + '</span></li>';
+            });
+            html += '</ul></div>';
+        }
+
+        container.innerHTML = html;
+    }
+
+    // ★ 区分統合により対象年月の入力欄は「月次棚卸・貯蔵品一覧表」の1つのみになったため、
+    //   複数入力欄間の同期処理は不要（renderAll()からの呼び出し口だけ残し、互換性のため関数は残す）
+    function syncTargetMonthInputs() {
+        // no-op（対象年月の入力欄は1つのみ）
+    }
+
+    function renderProductMasterLists() {
+        const idMap = {
+            '商品仕入': 'acc-purchase',
+            '消耗品': 'acc-consumable',
+            '貯蔵品': 'acc-stored',
+            '金券': 'acc-quocard',
+            'ボトルチケット': 'acc-bottleticket'
+        };
+
+        Object.values(idMap).forEach(id => {
+            const el = document.getElementById(id);
+            if(el) el.innerHTML = '';
+        });
+
+        const isLocked = isCurrentMonthLocked();
+
+        products.forEach(p => {
+            const isActive = (p.status || 'active') !== 'inactive';
+            const div = document.createElement('div');
+            div.className = 'master-item' + (isActive ? '' : ' is-inactive');
+
+            const infoDiv = document.createElement('div');
+            infoDiv.className = 'master-info';
+
+            const topRow = document.createElement('div');
+            topRow.className = 'master-info-top-row';
+
+            const nameSpan = document.createElement('span');
+            nameSpan.innerText = p.name;
+            nameSpan.style.fontWeight = '600';
+            if (isReducedTax(p)) {
+                const taxBadge = document.createElement('span');
+                taxBadge.className = 'reduced-tax-badge';
+                taxBadge.innerText = '（軽減税率対象）';
+                taxBadge.style.marginLeft = '4px';
+                nameSpan.appendChild(taxBadge);
+            }
+            if (!isActive) {
+                const statusBadge = document.createElement('span');
+                statusBadge.className = 'master-status-badge';
+                statusBadge.innerText = '取り扱い終了';
+                nameSpan.appendChild(statusBadge);
+            }
+            if (p.checkSheetVisible === false) {
+                const checkSheetBadge = document.createElement('span');
+                checkSheetBadge.className = 'checksheet-exempt-badge';
+                checkSheetBadge.innerText = '棚卸チェック表：対象外';
+                nameSpan.appendChild(checkSheetBadge);
+            }
+            topRow.appendChild(nameSpan);
+
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'master-date-badge';
+            let dateText = `取扱開始: ${toMonthKey(p.createdMonth) || '-'}`;
+            if (!isActive) {
+                dateText += `　／　取扱終了: ${toMonthKey(p.inactiveMonth) || '-'}`;
+            } else if (p.reactivateMonth) {
+                dateText += `　／　取扱再開日: ${toMonthKey(p.reactivateMonth)}`;
+            }
+            dateSpan.innerText = dateText;
+            topRow.appendChild(dateSpan);
+
+            infoDiv.appendChild(topRow);
+
+            const priceSpan = document.createElement('span');
+            priceSpan.className = 'master-price-badge';
+            priceSpan.innerText = `通常単価: ¥${p.defaultPrice.toLocaleString()}`;
+            infoDiv.appendChild(priceSpan);
+
+            div.appendChild(infoDiv);
+
+            const btnGroup = document.createElement('div');
+            btnGroup.className = 'master-btn-group';
+
+            const escName = p.name.replace(/'/g, "\\'");
+            btnGroup.innerHTML += `<button type="button" class="master-btn btn-sort" ${isLocked ? 'disabled' : ''} onclick="moveProduct('${escName}', '${p.category}', 'up')">▲</button>`;
+            btnGroup.innerHTML += `<button type="button" class="master-btn btn-sort" ${isLocked ? 'disabled' : ''} onclick="moveProduct('${escName}', '${p.category}', 'down')">▼</button>`;
+            btnGroup.innerHTML += `<button type="button" class="master-btn btn-edit" ${isLocked ? 'disabled' : ''} onclick="openEditModal('${escName}', '${p.category}')">✏️</button>`;
+            btnGroup.innerHTML += `<button type="button" class="master-btn btn-toggle-status" ${isLocked ? 'disabled' : ''} title="${isActive ? '取り扱い終了にする' : '販売中に戻す'}" onclick="toggleProductStatus('${escName}', '${p.category}')">${isActive ? '🚫' : '▶'}</button>`;
+            btnGroup.innerHTML += `<button type="button" class="master-btn btn-delete" ${isLocked ? 'disabled' : ''} title="削除（履歴がある商品は削除できません）" onclick="deleteProduct('${escName}', '${p.category}')">×</button>`;
+
+            div.appendChild(btnGroup);
+
+            const targetId = idMap[p.category];
+            if (targetId && document.getElementById(targetId)) {
+                document.getElementById(targetId).appendChild(div);
+            }
+        });
+
+        Object.keys(idMap).forEach(cat => {
+            const id = idMap[cat];
+            const container = document.getElementById(id);
+            if (container && container.children.length === 0) {
+                container.innerHTML = '<div style="color:#94a3b8; font-size:0.85em; padding:4px 0;">登録なし</div>';
+            }
+        });
+
+        refreshOpenAccordionHeights();
+    }
+
+    // 1商品・対象月分の棚卸ライン（前月繰越／当月入庫／当月使用数／当月棚卸数／各金額）を
+    // まとめて計算する共通関数。月次棚卸・在庫高一覧表の「行の描画」と「区分・全体の合計計算」
+    // の両方から呼び出すことで、同じロジックの二重実装を防ぐ。
+    function computeInventoryLine(p, targetMonth, previousStock) {
+        const key = p.name + '||' + p.category;
+
+        // 1. 前月繰越（前月の棚卸調整数量のみ。なければ0。前月からの自動引き継ぎはしない）
+        const prevData = previousStock[key] || { totalQty: 0, lots: [{ qty: 0, price: p.defaultPrice }] };
+        const prevQty = prevData.totalQty;
+        const prevPrice = prevData.lots[0]?.price ?? p.defaultPrice;
+
+        // 2. 当月入庫（当月の仕入履歴から自動集計。手入力上書きがあればそちらを優先）
+        const currentMonthInbound = history.filter(h =>
+            h.product === p.name &&
+            h.productCategory === p.category &&
+            h.type === '仕入' &&
+            h.isoDate.substring(0, 7) === targetMonth
+        );
+        const inQtyAuto = currentMonthInbound.reduce((sum, h) => sum + h.qty, 0);
+        const inPrice = currentMonthInbound.length > 0 ? currentMonthInbound[0].price : p.defaultPrice;
+
+        const inboundOverrideKey = targetMonth + '||' + p.name + '||' + p.category;
+        const inQty = (inboundOverrides[inboundOverrideKey] !== undefined)
+            ? inboundOverrides[inboundOverrideKey]
+            : inQtyAuto;
+
+        // 3. 当月棚卸数（当月の棚卸調整レコードがある場合のみその数量。なければ0）
+        // ★ findInventoryAdjustment を使用（前月繰越の算出側と同一ロジック）。
+        const matchedAdj = findInventoryAdjustment(p.name, p.category, targetMonth);
+
+        // 単価は当月仕入単価 → 前月繰越単価 → defaultPrice の優先順で取得
+        const unitPrice = inPrice ?? prevPrice ?? p.defaultPrice;
+        const displayQty = matchedAdj ? matchedAdj.qty : 0;
+        const displayPrice = displayQty * unitPrice;
+
+        // 4. 当月使用数・当月使用金額（前月繰越 + 当月入庫 - 当月棚卸数）
+        const useQty = (prevQty + inQty) - displayQty;
+        const useAmount = useQty * unitPrice;
+
+        // 5. 商品不明数（手入力・マイナスも許容。計算には使わず記録用の欄）
+        const matchedUnknown = history.find(h =>
+            h.product === p.name &&
+            h.productCategory === p.category &&
+            h.type === '商品不明' &&
+            h.isoDate.substring(0, 7) === targetMonth
+        );
+        const unknownQty = matchedUnknown ? matchedUnknown.qty : 0;
+
+
+        return { key, prevQty, prevPrice, inQty, inPrice, unitPrice, displayQty, displayPrice, useQty, useAmount, unknownQty };
+    }
+
+    function renderInventoryTables() {
+        const targetMonth = document.getElementById('targetMonth').value;
+        const container = document.getElementById('inventoryTablesContainer');
+        container.innerHTML = '';
+
+        if (!targetMonth) {
+            container.innerHTML = '<p style="color:#64748b; font-size:0.9em;">対象年月を選択してください。</p>';
+            return;
+        }
+
+        const previousStock = computeStockAtTime(targetMonth);
+        const fifoData = computeFIFO(targetMonth);
+        const isLocked = isCurrentMonthLocked();
+        let inventoryGrandTotal = 0;
+        let inventoryGrandUseAmount = 0;
+
+        CATEGORIES.forEach((category, idx) => {
+            const catProducts = products.filter(p => p.category === category && isProductVisibleInMonth(p, targetMonth, previousStock, fifoData));
+
+            // 商品ごとの棚卸ラインを1回だけ計算し、行描画・区分合計の両方で使い回す
+            const catLines = catProducts.map(p => ({ product: p, line: computeInventoryLine(p, targetMonth, previousStock) }));
+
+            const categoryTotalPriceSum = catLines.reduce((sum, { line }) => sum + line.displayPrice, 0);
+            const categoryUseAmountSum = catLines.reduce((sum, { line }) => sum + line.useAmount, 0);
+            // 前月繰越金額（区分合計）＝各商品の「前月繰越数量 × 前月時点の単価」の合計
+            const categoryPrevAmountSum = catLines.reduce((sum, { line }) => sum + (line.prevQty * line.prevPrice), 0);
+
+            inventoryGrandTotal += categoryTotalPriceSum;
+            inventoryGrandUseAmount += categoryUseAmountSum;
+
+            const cardId = `inv-card-${idx}`;
+            const contentId = `inv-content-${idx}`;
+            const isOpen = inventoryOpenState[idx];
+
+            const showUnknownCol = (category === '商品仕入');
+            const totalColCount = showUnknownCol ? 7 : 6;
+
+            let html = `
+                <div id="${cardId}" class="inventory-accordion-card" data-pdf-name="${category}_月次棚卸貯蔵品一覧表" style="margin-bottom: 12px; border: 1px solid var(--border); border-radius: 6px; background: white; overflow: hidden;">
+                    <div class="pdf-only-header">
+                        <div class="pdf-eyebrow">月次棚卸・貯蔵品一覧表</div>
+                        <h2>${category}</h2>
+                        <div class="pdf-meta-row">
+                            <span>対象年月<b>${targetMonth}</b></span>
+                            <span>前月繰越金額<b>¥${categoryPrevAmountSum.toLocaleString()}</b></span>
+                            <span>当月使用金額<b>¥${categoryUseAmountSum.toLocaleString()}</b></span>
+                            <span>在庫金額<b>¥${categoryTotalPriceSum.toLocaleString()}</b></span>
+                        </div>
+                    </div>
+                    <div class="inventory-accordion-header" onclick="toggleInventoryAccordion(this, '${contentId}', ${idx})">
+                        <span>■ ${category}</span>
+                        <div class="inventory-accordion-right">
+                            <span class="category-total-badge">当月使用金額: ¥${categoryUseAmountSum.toLocaleString()} ／ 在庫金額: ¥${categoryTotalPriceSum.toLocaleString()}</span>
+                            <button type="button" class="pdf-btn" onclick="downloadCategoryPDF(event, '${cardId}')">PDF出力</button>
+                            <span class="inv-acc-icon">${isOpen ? '－' : '＋'}</span>
+                        </div>
+                    </div>
+                    <div id="${contentId}" class="inventory-accordion-content ${isOpen ? 'open' : ''}">
+                        <div style="padding: 10px; overflow-x: auto;">
+                            <table class="inv-table ${showUnknownCol ? 'inv-table-has-unknown' : ''}">
+                                <thead>
+                                    <tr>
+                                        <th style="text-align: left; padding-left: 10px;">商品名</th>
+                                        <th>前月繰越<br><span style="font-size:0.85em; font-weight:normal;">(数量)</span></th>
+                                        <th>${category === '金券' ? '当月購入数' : category === 'ボトルチケット' ? '当月発行数' : '当月入庫'}<br><span style="font-size:0.85em; font-weight:normal;">(@単価)</span></th>
+                                        <th>当月使用数<br><span style="font-size:0.85em; font-weight:normal;">(@単価)</span></th>
+                                        ${showUnknownCol ? '<th>商品不明</th>' : ''}
+                                        <th>当月棚卸数<br><span style="font-size:0.85em; font-weight:normal;">(@単価)</span></th>
+                                        <th style="text-align: right; padding-right: 10px;">在庫金額</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+            `;
+
+            if (catLines.length === 0) {
+                html += `<tr><td colspan="${totalColCount}" style="text-align:center; color:#94a3b8;">この区分に登録されている商品はありません。</td></tr>`;
+            } else {
+                catLines.forEach(({ product: p, line }) => {
+                    const { prevQty, prevPrice, inQty, inPrice, unitPrice, displayQty, displayPrice, useQty, unknownQty } = line;
+
+                    // 各種内訳テキスト構築（前月繰越は数量のみでよいため@単価テキストは作らない）
+                    // ★ 数量は上段（qty-val / pdf-value-text）に既に表示済みのため、
+                    //   下段の内訳テキストは単価のみ（@¥○○）を表示する（数量の重複表示をやめる）。
+                    const inLotText = `<span style="font-size:0.85em; color:#64748b;">@¥${inPrice.toLocaleString()}</span>`;
+                    const useLotText = `<span style="font-size:0.85em; color:#64748b;">@¥${unitPrice.toLocaleString()}</span>`;
+                    const currentLotText = `<span style="font-size:0.85em; color:#64748b;">@¥${unitPrice.toLocaleString()}</span>`;
+
+                    html += `
+                        <tr>
+                            <td class="inv-cell-prod" style="padding-left: 10px;">${escapeHtml(p.name)}${reducedTaxLabel(p)}</td>
+                            <!-- 前月繰越（数量のみ。@単価は表示しない） -->
+                            <td>
+                                <div class="cell-qty-container">
+                                    <span class="qty-val">${prevQty}</span>
+                                </div>
+                            </td>
+                            <!-- 当月入庫 -->
+                            <td>
+                                <div class="cell-qty-container">
+                                    <input type="number" class="input-stock-count" min="0" value="${inQty}" 
+                                        ${isLocked ? 'disabled' : ''}
+                                        data-focuskey="in||${escapeHtml(p.name)}||${escapeHtml(p.category)}"
+                                        style="color:#1e293b; border:1px solid #cbd5e1; font-weight:bold; text-align:left; padding-left:5px; width:80px;"
+                                        oninput="debouncedSaveInboundOverride('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)"
+                                        onblur="flushInboundOverride('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)">
+                                    <span class="pdf-value-text">${inQty}</span>
+                                    <div class="lot-sub-text">${inLotText}</div>
+                                </div>
+                            </td>
+                            <!-- 当月使用数 -->
+                            <td>
+                                <div class="cell-qty-container">
+                                    <span class="qty-val" style="color:${useQty < 0 ? '#dc2626' : '#0f172a'}; font-weight:bold;">${useQty}</span>
+                                    <div class="lot-sub-text">${useLotText}</div>
+                                </div>
+                            </td>
+                            ${showUnknownCol ? `
+                            <!-- 商品不明（手入力・マイナス可。計算には使わず記録用。商品仕入のみ） -->
+                            <td>
+                                <div class="cell-qty-container">
+                                    <input type="number" class="input-stock-count" value="${unknownQty}"
+                                        ${isLocked ? 'disabled' : ''}
+                                        data-focuskey="unk||${escapeHtml(p.name)}||${escapeHtml(p.category)}"
+                                        style="color:${unknownQty < 0 ? '#dc2626' : '#1e293b'}; border:1px solid #cbd5e1; font-weight:bold; text-align:left; padding-left:5px; width:80px;"
+                                        oninput="debouncedSaveUnknownQty('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)"
+                                        onblur="flushUnknownQty('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)">
+                                    <span class="pdf-value-text">${unknownQty}</span>
+                                </div>
+                            </td>` : ''}
+                            <!-- 当月棚卸数 -->
+                            <td>
+                                <div class="cell-qty-container">
+                                    <input type="number" class="input-stock-count" min="0" 
+                                        value="${displayQty}" 
+                                        ${isLocked ? 'disabled' : ''} 
+                                        data-focuskey="adj||${escapeHtml(p.name)}||${escapeHtml(p.category)}"
+                                        oninput="debouncedSaveStockAdjustment('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)"
+                                        onblur="flushStockAdjustment('${p.name.replace(/'/g, "\\'")}', '${p.category}', this.value)"
+                                        style="font-weight:bold; text-align:left; padding-left:5px; width:80px;">
+                                    <span class="pdf-value-text">${displayQty}</span>
+                                    <div class="lot-sub-text">${currentLotText}</div>
+                                </div>
+                            </td>
+                            <!-- 在庫金額 -->
+                            <td class="inv-cell-price" style="padding-right: 10px;">¥${displayPrice.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            if (catLines.length > 0) {
+                html += `
+                                    <tr class="pdf-subtotal-row" style="background:#f8fafc; font-weight:bold; border-top:2px solid var(--border);">
+                                        <td colspan="3" style="text-align:right; padding: 8px 10px; color:#1e293b;">区分合計：</td>
+                                        <td style="text-align:left; padding-left:5px; color:#0f172a;">当月使用金額<br>¥${categoryUseAmountSum.toLocaleString()}</td>
+                                        ${showUnknownCol ? '<td></td>' : ''}
+                                        <td></td>
+                                        <td class="inv-cell-price" style="text-align:right; padding-right:10px; color:#2563eb;">¥${categoryTotalPriceSum.toLocaleString()}</td>
+                                    </tr>
+                `;
+            }
+
+            html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.innerHTML += html;
+        });
+
+        container.innerHTML += `
+            <table class="pdf-total-table" style="margin-top: 15px; width: 100%;">
+                <tbody>
+                    <tr class="pdf-grandtotal-row" style="background:#f1f5f9; font-weight:bold;">
+                        <td colspan="2" style="text-align:right; padding: 12px; color:#1e293b; font-size:1.05em;">🧾 当月使用金額合計:</td>
+                        <td class="inv-cell-price" style="color:#0f172a; font-size:1.1em; background:#e2e8f0; text-align: right; padding-right: 10px;">¥${inventoryGrandUseAmount.toLocaleString()}</td>
+                        <td colspan="2" style="text-align:right; padding: 12px; padding-right:15px; color:#1e293b; font-size:1.05em;">📊 棚卸・在庫高合計金額:</td>
+                        <td class="inv-cell-price" style="color:#2563eb; font-size:1.1em; background:#e2e8f0; text-align: right; padding-right: 10px; width: 18%;">¥${inventoryGrandTotal.toLocaleString()}</td>
+                    </tr>
+                </tbody>
+            </table>
+        `;
+    }
+
+    // 数量入力（手入力 or 上下クリック）の反映制御。
+    // 上下矢印クリック連打時は最後の数値のみ履歴に反映させるためデバウンス処理を行う。
+    const qtyInputDebounceTimers = {};
+    const QTY_INPUT_DEBOUNCE_MS = 600;
+
+    function debouncedSaveStockAdjustment(prodName, prodCat, val) {
+        const key = 'adj||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) clearTimeout(qtyInputDebounceTimers[key]);
+        qtyInputDebounceTimers[key] = setTimeout(function() {
+            delete qtyInputDebounceTimers[key];
+            saveStockAdjustment(prodName, prodCat, val);
+        }, QTY_INPUT_DEBOUNCE_MS);
+    }
+
+    function flushStockAdjustment(prodName, prodCat, val) {
+        const key = 'adj||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) {
+            clearTimeout(qtyInputDebounceTimers[key]);
+            delete qtyInputDebounceTimers[key];
+        }
+        saveStockAdjustment(prodName, prodCat, val);
+    }
+
+    function debouncedSaveInboundOverride(prodName, prodCat, val) {
+        const key = 'in||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) clearTimeout(qtyInputDebounceTimers[key]);
+        qtyInputDebounceTimers[key] = setTimeout(function() {
+            delete qtyInputDebounceTimers[key];
+            saveInboundOverride(prodName, prodCat, val);
+        }, QTY_INPUT_DEBOUNCE_MS);
+    }
+
+    function flushInboundOverride(prodName, prodCat, val) {
+        const key = 'in||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) {
+            clearTimeout(qtyInputDebounceTimers[key]);
+            delete qtyInputDebounceTimers[key];
+        }
+        saveInboundOverride(prodName, prodCat, val);
+    }
+
+    function saveInboundOverride(prodName, prodCat, val) {
+        if (isCurrentMonthLocked()) return;
+        const targetMonth = document.getElementById('targetMonth').value;
+        if (!targetMonth) return;
+
+        let inputQty = parseInt(val, 10);
+        if (isNaN(inputQty) || inputQty < 0) inputQty = 0;
+
+        const overrideKey = targetMonth + '||' + prodName + '||' + prodCat;
+        inboundOverrides[overrideKey] = inputQty;
+
+        // サーバーへ保存：入庫上書きレコードとして履歴に記録
+        const now = new Date();
+        // 日にちは「対象年月の1日」に固定する（実行日の日にちをそのまま使うと、
+        // 対象月に存在しない日付（例：6月31日）が生成され、日付繰り上がりで
+        // 翌月のレコードとして保存されてしまうバグを防ぐため）。
+        const dayStr = '01';
+        const timeStr = now.toTimeString().split(' ')[0];
+        // isoDate は必ずISO形式（YYYY-MM-DDThh:mm:ss.000Z）で生成する
+        const dummyIso = `${targetMonth}-${dayStr}T${timeStr}.000Z`;
+
+        // 同一商品・同一月の入庫手入力が複数ある場合は、今回の値を正として重複を整理する。
+        // 旧実装では先頭行だけ更新していたため、再起動時に後続の古い行が復元されて
+        // 数量が元に戻ることがあった。
+        const matchingInboundIdxs = [];
+        history.forEach((h, i) => {
+            if (h.product === prodName &&
+                h.productCategory === prodCat &&
+                h.type === '入庫手入力' &&
+                h.isoDate.substring(0, 7) === targetMonth) {
+                matchingInboundIdxs.push(i);
+            }
+        });
+        const existingIdx = matchingInboundIdxs.length > 0 ? matchingInboundIdxs[0] : -1;
+
+        const fifoData = computeFIFO(targetMonth);
+        const key = prodName + '||' + prodCat;
+        const currentLotPrice = fifoData[key]?.lots[0]?.price ?? fifoData[key]?.defaultPrice ?? 0;
+
+        const overrideRow = {
+            id: existingIdx > -1 ? history[existingIdx].id : (dummyIso + '_' + Math.random().toString(36).substr(2, 9)),
+            date: `${targetMonth}-${dayStr} ${timeStr.substring(0,5)}`,
+            isoDate: dummyIso,
+            product: prodName,
+            productCategory: prodCat,
+            type: '入庫手入力',
+            qty: inputQty,
+            price: currentLotPrice,
+            recordedAt: now.toISOString() // 実際に入力・処理した本当の日時（対象年月とは別管理）
+        };
+
+        if (existingIdx > -1) {
+            history[existingIdx] = overrideRow;
+            // 2件目以降の古い重複行を削除（後ろから削除してインデックスずれを防ぐ）
+            for (let k = matchingInboundIdxs.length - 1; k >= 1; k--) {
+                history.splice(matchingInboundIdxs[k], 1);
+            }
+        } else {
+            history.push(overrideRow);
+        }
+
+        renderAll();
+        if (matchingInboundIdxs.length > 1) {
+            // 重複行を削除したため、1件の上書きでは古い行が残る。
+            // 履歴全体を書き戻して、0への変更も確実に永続化する。
+            syncWithServer('history', history);
+        } else {
+            // GAS側の addHistoryRow が同一IDなら上書き・なければ追記で処理する
+            google.script.run
+                .withSuccessHandler(function(){})
+                .withFailureHandler(function(err){ alert('入庫手入力の保存エラー: ' + err.message); })
+                .addHistoryRow(overrideRow);
+        }
+    }
+
+    function saveStockAdjustment(prodName, prodCat, val) {
+        if (isCurrentMonthLocked()) return;
+        const targetMonth = document.getElementById('targetMonth').value;
+        if (!targetMonth) return;
+
+        let inputQty = parseInt(val, 10);
+        if (isNaN(inputQty) || inputQty < 0) inputQty = 0;
+
+        const now = new Date();
+        // 日にちは「対象年月の1日」に固定する（実行日の日にちをそのまま使うと、
+        // 対象月に存在しない日付（例：6月31日）が生成され、日付繰り上がりで
+        // 翌月のレコードとして保存されてしまうバグを防ぐため）。
+        const dayStr = '01';
+        const timeStr = now.toTimeString().split(' ')[0];
+        // isoDate は必ずISO形式（YYYY-MM-DDThh:mm:ss.000Z）で生成する（タイムゾーン変換で翌月判定されるのを防ぐ）
+        const dummyIso = `${targetMonth}-${dayStr}T${timeStr}.000Z`;
+
+        // ★ 同一商品・同一月の「棚卸調整」レコードが（過去データ不整合等で）複数残って
+        //   いる場合に備え、該当する既存レコードを全て洗い出す。1件目のIDを更新対象として
+        //   使い回し、2件目以降の重複レコードはこのタイミングで削除して正常化する。
+        //   これを怠ると、当月棚卸数の表示（先頭の1件を参照）と翌月の前月繰越（末尾寄りの
+        //   1件を参照）とで別々の重複レコードを見てしまい、数値が食い違う不具合が起きる。
+        const dupIdxs = [];
+        history.forEach((h, i) => {
+            if (h.product === prodName && h.productCategory === prodCat && h.type === '棚卸調整' && h.isoDate.substring(0, 7) === targetMonth) {
+                dupIdxs.push(i);
+            }
+        });
+        const hasDuplicates = dupIdxs.length > 1;
+
+        const fifoData = computeFIFO(targetMonth);
+        const key = prodName + '||' + prodCat;
+        const currentLotPrice = fifoData[key]?.lots[0]?.price ?? fifoData[key]?.defaultPrice ?? 0;
+
+        const adjRow = {
+            // 既存レコードがある場合は同じIDを使う（サーバー側でID照合して上書きされるため）
+            id: dupIdxs.length > 0 ? history[dupIdxs[0]].id : (dummyIso + '_' + Math.random().toString(36).substr(2, 9)),
+            date: `${targetMonth}-${dayStr} ${timeStr.substring(0,5)}`,
+            isoDate: dummyIso,
+            product: prodName,
+            productCategory: prodCat,
+            type: '棚卸調整',
+            qty: inputQty,
+            price: currentLotPrice,
+            recordedAt: now.toISOString() // 実際に入力・処理した本当の日時（対象年月とは別管理）
+        };
+
+        if (dupIdxs.length > 0) {
+            history[dupIdxs[0]] = adjRow;
+            // 2件目以降の重複レコードを配列から削除（末尾側から削除してインデックスずれを防ぐ）
+            for (let k = dupIdxs.length - 1; k >= 1; k--) {
+                history.splice(dupIdxs[k], 1);
+            }
+        } else {
+            history.push(adjRow);
+        }
+
+        renderAll();
+
+        if (hasDuplicates) {
+            // 重複を削除したため、1件のIDだけの上書きでは不十分。履歴全体をシートへ
+            // 書き戻して重複行を確実に消す（saveSheetData は clearContents してから
+            // 全件書き込むため、シート側の重複行も一緒に解消される）。
+            syncWithServer('history', history);
+        } else {
+            // GAS側の addHistoryRow が同一IDなら上書き・なければ追記で処理する
+            google.script.run
+                .withSuccessHandler(function(){})
+                .withFailureHandler(function(err){ alert('エラー: ' + err.message); })
+                .addHistoryRow(adjRow);
+        }
+    }
+
+    // ★「商品不明」列：当月使用数と当月棚卸数の間に手入力で記録する差異用の欄（商品仕入のみ）。
+    //   数量計算には一切使わず、記録・確認のためだけの数値のため、マイナスもそのまま許容する。
+    function debouncedSaveUnknownQty(prodName, prodCat, val) {
+        const key = 'unk||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) clearTimeout(qtyInputDebounceTimers[key]);
+        qtyInputDebounceTimers[key] = setTimeout(function() {
+            delete qtyInputDebounceTimers[key];
+            saveUnknownQty(prodName, prodCat, val);
+        }, QTY_INPUT_DEBOUNCE_MS);
+    }
+
+    function flushUnknownQty(prodName, prodCat, val) {
+        const key = 'unk||' + prodName + '||' + prodCat;
+        if (qtyInputDebounceTimers[key]) {
+            clearTimeout(qtyInputDebounceTimers[key]);
+            delete qtyInputDebounceTimers[key];
+        }
+        saveUnknownQty(prodName, prodCat, val);
+    }
+
+    function saveUnknownQty(prodName, prodCat, val) {
+        if (isCurrentMonthLocked()) return;
+        const targetMonth = document.getElementById('targetMonth').value;
+        if (!targetMonth) return;
+
+        // マイナスもそのまま許容する（0未満でクランプしない）
+        let inputQty = parseInt(val, 10);
+        if (isNaN(inputQty)) inputQty = 0;
+
+        const now = new Date();
+        // 日にちは「対象年月の1日」に固定する（実行日の日にちをそのまま使うと、
+        // 対象月に存在しない日付（例：6月31日）が生成され、日付繰り上がりで
+        // 翌月のレコードとして保存されてしまうバグを防ぐため）。
+        const dayStr = '01';
+        const timeStr = now.toTimeString().split(' ')[0];
+        const dummyIso = `${targetMonth}-${dayStr}T${timeStr}.000Z`;
+
+        const existingIdx = history.findIndex(h =>
+            h.product === prodName &&
+            h.productCategory === prodCat &&
+            h.type === '商品不明' &&
+            h.isoDate.substring(0, 7) === targetMonth
+        );
+
+        const unknownRow = {
+            id: existingIdx > -1 ? history[existingIdx].id : (dummyIso + '_' + Math.random().toString(36).substr(2, 9)),
+            date: `${targetMonth}-${dayStr} ${timeStr.substring(0,5)}`,
+            isoDate: dummyIso,
+            product: prodName,
+            productCategory: prodCat,
+            type: '商品不明',
+            qty: inputQty,
+            price: 0,
+            recordedAt: now.toISOString()
+        };
+
+        if (existingIdx > -1) {
+            history[existingIdx] = unknownRow;
+        } else {
+            history.push(unknownRow);
+        }
+
+        renderAll();
+        // GAS側の addHistoryRow が同一IDなら上書き・なければ追記で処理する
+        google.script.run
+            .withSuccessHandler(function(){})
+            .withFailureHandler(function(err){ alert('商品不明欄の保存エラー: ' + err.message); })
+            .addHistoryRow(unknownRow);
+    }
+
+    function renderHistoryTable() {
+        const searchKeyword = document.getElementById('historySearchInput').value.toLowerCase().trim();
+        const monthFilter = document.getElementById('historyMonthFilter').value;
+        const tbody = document.getElementById('historyTable');
+        tbody.innerHTML = '';
+
+        let filtered = history.filter(h => {
+            if (!showExpiredHistoryState && isHistoryOlderThanDisplayPeriod(h)) return false;
+            if (monthFilter && h.isoDate.substring(0,7) !== monthFilter) return false;
+            if (searchKeyword) {
+                const matchName = h.product.toLowerCase().includes(searchKeyword);
+                const matchCat = h.productCategory.toLowerCase().includes(searchKeyword);
+                if (!matchName && !matchCat) return false;
+            }
+            return true;
+        });
+
+        // ★ 表示している「処理日時」列は recordedAt なので、並び替えも recordedAt を
+        //   基準にする（以前は isoDate（対象年月・仕入日）で並べていたため、
+        //   後から日付を遡って入力・修正したデータがあると「処理日時」の時系列が
+        //   おかしく見える不具合があった）。recordedAt が無い古いデータは isoDate で代用。
+        filtered.sort((a,b) => (b.recordedAt || b.isoDate || '').localeCompare(a.recordedAt || a.isoDate || ''));
+
+        const displayCount = showAllHistoryState ? filtered.length : 5;
+        const targetList = filtered.slice(0, displayCount);
+
+        if (targetList.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#94a3b8;">該当する履歴データがありません。</td></tr>';
+            document.getElementById('historyMoreButtonContainer').innerHTML = '';
+            document.getElementById('historyTopToggleBtn').style.display = 'none';
+            return;
+        }
+
+        targetList.forEach(h => {
+            const tr = document.createElement('tr');
+            const isLock = lockedMonths.includes(h.isoDate.substring(0,7));
+
+            let typeBadge = `<span class="badge bg-in">仕入</span>`;
+            if (h.type === '棚卸調整') {
+                typeBadge = `<span class="badge bg-out" style="background:#e0f2fe; color:#0369a1;">棚卸確定</span>`;
+            } else if (h.type === '入庫手入力') {
+                typeBadge = `<span class="badge" style="background:#fef9c3; color:#854d0e;">入庫手入力</span>`;
+            } else if (h.type === '商品不明') {
+                typeBadge = `<span class="badge" style="background:#fee2e2; color:#991b1b;">商品不明</span>`;
+            }
+
+            const dispPrice = (h.price === '' || h.price === undefined || h.type === '商品不明') ? '-' : '¥' + h.price.toLocaleString();
+            const targetMonthLabel = h.isoDate ? h.isoDate.substring(0, 7) : '-';
+            const histProd = products.find(p => p.name === h.product && p.category === h.productCategory);
+            const histReducedTaxLabel = histProd ? reducedTaxLabel(histProd) : '';
+
+            tr.innerHTML = `
+                <td class="col-check"><input type="checkbox" class="chk-history" value="${h.id}" ${isLock ? 'disabled' : ''}></td>
+                <td>${formatRecordedAt(h.recordedAt)}</td>
+                <td class="inv-cell-center"><span style="font-weight:bold; color:#1e293b;">${targetMonthLabel}</span></td>
+                <td><strong style="color:#0f172a;">${escapeHtml(h.product)}</strong>${histReducedTaxLabel} <span style="font-size:0.8em; color:#64748b;">(${escapeHtml(h.productCategory)})</span></td>
+                <td class="inv-cell-center">${typeBadge}</td>
+                <td class="inv-cell-center" style="font-weight:bold;">${h.qty}</td>
+                <td style="text-align:right; font-weight:500;">${dispPrice}</td>
+                <td class="inv-cell-center">
+                    <button type="button" class="master-btn btn-edit" style="padding:2px 6px;" ${isLock ? 'disabled' : ''} onclick="openEditHistoryModal('${h.id}')">修正</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        const moreBtnContainer = document.getElementById('historyMoreButtonContainer');
+        const topToggleBtn = document.getElementById('historyTopToggleBtn');
+        moreBtnContainer.innerHTML = '';
+
+        if (filtered.length > 5) {
+            const moreBtn = document.createElement('div');
+            moreBtn.className = 'more-btn';
+            if (showAllHistoryState) {
+                moreBtn.innerText = `▲ 履歴を閉じる（5件表示に戻す）`;
+                moreBtn.onclick = toggleHistoryDisplay;
+            } else {
+                moreBtn.innerText = `▼ さらに過去の履歴を表示する (残り ${filtered.length - displayCount} 件)`;
+                moreBtn.onclick = toggleHistoryDisplay;
+            }
+            moreBtnContainer.appendChild(moreBtn);
+
+            topToggleBtn.style.display = 'inline-block';
+            topToggleBtn.innerText = showAllHistoryState
+                ? '▲ 履歴を閉じる（5件表示に戻す）'
+                : `▼ すべて表示する (残り ${filtered.length - displayCount} 件)`;
+        } else {
+            topToggleBtn.style.display = 'none';
+        }
+    }
+
+    function toggleHistoryDisplay() {
+        showAllHistoryState = !showAllHistoryState;
+        renderHistoryTable();
+    }
+
+    function isHistoryOlderThanDisplayPeriod(historyRow) {
+        const rawDate = historyRow.recordedAt || historyRow.isoDate;
+        const historyDate = new Date(rawDate);
+        if (!rawDate || Number.isNaN(historyDate.getTime())) return false;
+
+        const cutoff = new Date();
+        cutoff.setHours(0, 0, 0, 0);
+        cutoff.setDate(cutoff.getDate() - HISTORY_DISPLAY_DAYS);
+        return historyDate < cutoff;
+    }
+
+    function toggleExpiredHistoryDisplay() {
+        showExpiredHistoryState = !showExpiredHistoryState;
+        showAllHistoryState = false;
+        document.getElementById('btnExpiredHistoryToggle').textContent = showExpiredHistoryState
+            ? '60日超過の履歴を隠す'
+            : '60日超過の履歴を表示';
+        renderHistoryTable();
+    }
+
+    function toggleSelectAllHistory(masterChk) {
+        const checkboxes = document.querySelectorAll('#historyTable .chk-history');
+        checkboxes.forEach(chk => {
+            if (!chk.disabled) chk.checked = masterChk.checked;
+        });
+    }
+
+    function deleteSelectedHistory() {
+        const checkboxes = document.querySelectorAll('#historyTable .chk-history:checked');
+        if (checkboxes.length === 0) {
+            alert('削除対象の履歴にチェックが入っていません。');
+            return;
+        }
+
+        if (!confirm(`チェックされた ${checkboxes.length} 件の履歴データを一括削除しますか？\n※削除した仕入ロットは元に戻せません。`)) return;
+
+        const idsToDelete = Array.from(checkboxes).map(chk => chk.value);
+        
+        backupHistory = [...history];
+        document.getElementById('undoButton').style.display = 'inline-block';
+
+        history = history.filter(h => !idsToDelete.includes(h.id));
+
+        document.getElementById('thSelectAll').checked = false;
+        renderAll();
+
+        // IDによる個別削除ではなく、削除後のhistory全体をシートに上書き保存する
+        // （スプレッドシート側の列ズレ等でIDが一致しない場合でも確実に反映される）
+        syncWithServer('history', history);
+    }
+
+    function undoClearData() {
+        if (!backupHistory) return;
+        history = [...backupHistory];
+        backupHistory = null;
+        document.getElementById('undoButton').style.display = 'none';
+        renderAll();
+        syncWithServer('history', history);
+    }
+
+    function openEditHistoryModal(id) {
+        const item = history.find(h => h.id === id);
+        if (!item) return;
+
+        if (lockedMonths.includes(item.isoDate.substring(0,7))) {
+            alert('この月は仮締めされているため修正できません。');
+            return;
+        }
+
+        document.getElementById('editHistoryId').value = id;
+        const qtyInput = document.getElementById('editHistoryQty');
+        qtyInput.value = item.qty;
+        // 「商品不明」はマイナス・0も記録用の値として入力できるようにする
+        if (item.type === '商品不明') {
+            qtyInput.removeAttribute('min');
+        } else {
+            qtyInput.setAttribute('min', '1');
+        }
+        
+        const priceGroup = document.getElementById('editHistoryPriceGroup');
+        if (item.type === '棚卸調整' || item.type === '商品不明') {
+            priceGroup.style.display = 'none';
+        } else {
+            priceGroup.style.display = 'block';
+            document.getElementById('editHistoryPrice').value = item.price;
+        }
+
+        document.getElementById('editHistoryModal').style.display = 'flex';
+    }
+
+    function closeEditHistoryModal() {
+        document.getElementById('editHistoryModal').style.display = 'none';
+    }
+
+    function saveHistoryEdit() {
+        const id = document.getElementById('editHistoryId').value;
+        const item = history.find(h => h.id === id);
+        if (!item) return;
+
+        const newQty = parseInt(document.getElementById('editHistoryQty').value, 10);
+
+        // 「商品不明」はマイナス・0も記録用の値として許容する。それ以外は従来通り1以上。
+        if (item.type === '商品不明') {
+            if (isNaN(newQty)) {
+                alert('数値を入力してください。');
+                return;
+            }
+        } else if (isNaN(newQty) || newQty < 1) {
+            alert('数量は1以上の数値を入力してください。');
+            return;
+        }
+
+        item.qty = newQty;
+        if (item.type !== '棚卸調整' && item.type !== '商品不明') {
+            const newPrice = parseInt(document.getElementById('editHistoryPrice').value, 10);
+            item.price = isNaN(newPrice) ? 0 : newPrice;
+        }
+        item.recordedAt = new Date().toISOString(); // 修正した本当の日時に更新
+
+        closeEditHistoryModal();
+        renderAll();
+        syncWithServer('history', history);
+    }
+
+    // PDF出力共通オプション（文字・線がかすれないよう高解像度設定）
+    function buildPdfOptions(fileBaseName, selectedMonth) {
+        return {
+            margin:       [8, 8, 8, 8],
+            filename:     `${fileBaseName}_${selectedMonth}.pdf`,
+            image:        { type: 'png' },
+            html2canvas:  {
+                scale: 3,
+                useCORS: true,
+                logging: false,
+                scrollY: 0,
+                scrollX: 0,
+                letterRendering: true,
+                backgroundColor: '#ffffff'
+            },
+            jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait', compress: true },
+            // ★ 'avoid-all' を併用すると、各カードに指定している改ページ制御（page-break-after 等）と
+            //   ライブラリ側の自動判定が競合し、ページ境界でカード左端のゴールドの罫線が
+            //   前ページ側にわずかに描画されてしまう不具合が発生するため、'css' 指定のみにする。
+            pagebreak:    { mode: ['css'] }
+        };
+    }
+
+    function downloadCategoryPDF(event, targetCardId) {
+        event.stopPropagation();
+        const selectedMonth = document.getElementById('targetMonth').value;
+        const targetCard = document.getElementById(targetCardId);
+        if (!targetCard) return;
+        const targetContent = targetCard.querySelector('.inventory-accordion-content');
+        const categoryName = targetCard.dataset.pdfName || targetCard.querySelector('.inventory-accordion-header span').innerText.replace('■ ', '');
+        const fileBaseName = categoryName.replace(/[\\/:*?"<>|]/g, '_');
+
+        document.body.classList.add('html2pdf-printing');
+        if (targetContent) targetContent.classList.add('open');
+
+        const opt = buildPdfOptions(fileBaseName, selectedMonth);
+
+        html2pdf().set(opt).from(targetCard).save().then(() => {
+            document.body.classList.remove('html2pdf-printing');
+            renderAll();
+        });
+    }
+
+    // 区分ごとのカードをまとめて1つのPDFに出力する（月次棚卸・貯蔵品一覧表）
+    function downloadGroupPDF(containerId, groupTitle) {
+        const selectedMonth = document.getElementById('targetMonth').value;
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        document.body.classList.add('html2pdf-printing');
+        document.body.classList.add('html2pdf-group-printing');
+
+        const fileBaseName = groupTitle.replace(/[\\/:*?"<>|]/g, '_');
+        const opt = buildPdfOptions(fileBaseName, selectedMonth);
+
+        html2pdf().set(opt).from(container).save().then(() => {
+            document.body.classList.remove('html2pdf-printing');
+            document.body.classList.remove('html2pdf-group-printing');
+            renderAll();
+        });
+    }
+
+
+</script>
+</body>
+</html>
